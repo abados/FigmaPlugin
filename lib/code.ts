@@ -6,19 +6,15 @@ figma.ui.onmessage = async (msg) => {
   // ✅ Step 1: Get the selected instance
   const selectedNodes = figma.currentPage.selection;
   if (selectedNodes.length === 0) {
-    console.error("❌ No component selected!");
     figma.notify("❌ No component selected!");
     return;
   }
 
   const selectedComponent = selectedNodes[0];
   if (selectedComponent.type !== "INSTANCE") {
-    console.error("❌ Selected item is not an instance of a component!");
     figma.notify("❌ Selected item is not an instance of a component!");
     return;
   }
-
-  console.log("🔹 Using selected component...");
 
   // ✅ Step 2: Clone the instance and position it
   let newInstance = selectedComponent.clone();
@@ -26,83 +22,129 @@ figma.ui.onmessage = async (msg) => {
   newInstance.x += 300;
   newInstance.y += 100;
   figma.currentPage.appendChild(newInstance);
-  console.log("✅ Cloned instance:", newInstance);
+  newInstance = newInstance.detachInstance();
 
-  // ✅ Step 3: DETACH instance to make it editable
-  const detachedInstance = newInstance.detachInstance();
-  console.log("🔓 Detached instance:", detachedInstance);
-
-  // ✅ Step 4: Locate "Column Chart" inside the detached instance
-  let columnChart = detachedInstance.children.find(
+  // ✅ Step 3: Locate "Column Chart" inside the instance
+  let columnChart = newInstance.children.find(
     (node) =>
       node.type === "FRAME" &&
       node.name.trim().toLowerCase() === "column chart",
   );
 
   if (!columnChart) {
-    console.error("❌ Could not find 'Column Chart' inside the instance.");
     figma.notify("❌ 'Column Chart' not found!");
     return;
   }
 
-  console.log("✅ Found 'Column Chart':", columnChart);
-
-  // ✅ Step 5: Print every child of "Column Chart"
-  console.log(
-    "📂 Direct children inside 'Column Chart':",
-    columnChart.children.map((n) => `${n.name} (${n.type})`),
-  );
-
-  // ✅ Step 6: Locate "Bar Element" inside Column Chart
+  // ✅ Step 5: Locate "Bar Element" inside Column Chart
   let barElement = columnChart.children.find(
     (node) => node.name.trim().toLowerCase() === "bar element",
   );
 
   if (!barElement) {
-    console.error("❌ Could not find 'Bar Element' inside Column Chart.");
     figma.notify("❌ 'Bar Element' not found!");
     return;
   }
 
-  console.log("✅ Found 'Bar Element':", barElement);
+  // ✅ Step 6: Locate "Label Frame" and Load Font Once
+  let labelFrame = barElement.children.find(
+    (node) => node.name.trim().toLowerCase() === "label frame",
+  );
 
-  // ✅ Step 7: DETACH "Bar Element" if it's still an InstanceNode
-  if (barElement.type === "INSTANCE") {
-    console.log("🔓 Detaching 'Bar Element' because it's still an instance.");
-    barElement = barElement.detachInstance();
-    console.log("🔓 'Bar Element' is now detached and editable:", barElement);
+  if (!labelFrame) {
+    figma.notify("❌ 'Label Frame' not found!");
+    return;
   }
 
-  // ✅ Step 8: Clone "Bar Element" and append multiple copies
-  const numBars = msg.numBars || 1;
-  const barHeight = msg.newHeight || 80;
-  console.log(`🔹 Creating ${numBars} bar elements with height ${barHeight}px`);
+  let labelText = labelFrame.children.find(
+    (node) =>
+      node.type === "TEXT" && node.name.trim().toLowerCase() === "label",
+  );
 
-  for (let i = 1; i < numBars; i++) {
-    const newBarElement = barElement.clone();
-    newBarElement.name = `Bar Element ${i + 1}`;
-    newBarElement.y += i * (barHeight + 10); // Stack bars with spacing
-    columnChart.appendChild(newBarElement);
-    console.log(`✅ Added Bar Element: ${newBarElement.name}`);
+  if (!labelText) {
+    figma.notify("❌ 'Label' text node not found!");
+    return;
   }
 
-  console.log("🛠 Final bar elements count:", columnChart.children.length);
-  figma.notify(`✅ Created ${numBars} bar elements!`);
-
-  // ✅ Step 9: Resize "Column Chart" to fit all bars
   try {
-    const totalBarHeight = numBars * (barHeight + 10); // Extra spacing
+    // ✅ Load font once before the loop
+    await figma.loadFontAsync(labelText.fontName);
+  } catch (error) {
+    console.error("❌ Failed to load font:", error);
+    return;
+  }
+
+  // ✅ Step 9: Clone "Bar Element" multiple times inside "Column Chart"
+  const numBars = msg.numBars || 1;
+
+  for (let i = 0; i < numBars; i++) {
+    let currentBarElement = i === 0 ? barElement : barElement.clone();
+
+    if (!currentBarElement) {
+      console.error(`❌ Failed to clone 'Bar Element' for index ${i}`);
+      continue;
+    }
+
+    if (i === 0) {
+      // ✅ Modify existing first 'Bar Element' (do not clone)
+      let barWithSpace = barElement.children.find(
+        (node) => node.type === "FRAME",
+      );
+
+      let barFrame = null;
+      if (barWithSpace && barWithSpace.children) {
+        barFrame = barWithSpace.children.find((node) => node.type === "FRAME");
+      }
+
+      if (barFrame) {
+        barFrame.paddingTop = 100 - msg.newHeight;
+      }
+    } else {
+      // ✅ Clone additional 'Bar Elements'
+      currentBarElement.name = `Bar Element ${i + 1}`;
+      if (currentBarElement.parent !== columnChart) {
+        columnChart.appendChild(currentBarElement);
+      }
+    }
+
+    // ✅ Locate 'Label Frame' inside each 'Bar Element'
+    let newLabelFrame = currentBarElement.children.find(
+      (node) => node.name.trim().toLowerCase() === "label frame",
+    );
+
+    if (!newLabelFrame) {
+      console.warn(`⚠️ 'Label Frame' not found in '${currentBarElement.name}'`);
+      continue;
+    }
+
+    // ✅ Find 'Label' inside 'Label Frame'
+    let newLabelText = newLabelFrame.children.find(
+      (node) =>
+        node.type === "TEXT" && node.name.trim().toLowerCase() === "label",
+    );
+
+    if (!newLabelText) {
+      console.warn(
+        `⚠️ No 'Label' text node found in '${currentBarElement.name}'`,
+      );
+      continue;
+    }
+
+    // ✅ Update label text using preloaded font
+    newLabelText.characters = `Label ${i + 1}`;
+  }
+
+  figma.notify(`✅ Adjusted bar heights & created ${numBars} bar elements!`);
+
+  // ✅ Step 10: Resize "Column Chart" to fit all bars
+  try {
+    const totalBarHeight = numBars * (msg.newHeight + 10);
     columnChart.resize(columnChart.width, totalBarHeight);
-    console.log("✅ Resized 'Column Chart' to fit new bars.");
   } catch (error) {
     console.error("❌ Error while resizing 'Column Chart':", error);
   }
 
-  // ✅ Step 10: Select & Zoom
-  figma.currentPage.selection = [detachedInstance];
-  figma.viewport.scrollAndZoomIntoView([detachedInstance]);
-
-  console.log(
-    `🎉 Successfully created ${numBars} "Bar Element" inside the new instance!`,
-  );
+  // ✅ Step 11: Select & Zoom
+  figma.currentPage.selection = [newInstance];
+  figma.viewport.scrollAndZoomIntoView([newInstance]);
 };
