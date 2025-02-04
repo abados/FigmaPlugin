@@ -6,9 +6,19 @@ export function App() {
   const [numBars, setNumBars] = useState(1); // Default number of bars
 
   const handleCreateInstance = () => {
-    console.log("📤 Sending create-instance message...");
+    console.log("📤 Sending create-instance message with values:", {
+      barHeight,
+      numBars,
+    });
+
     parent.postMessage(
-      { pluginMessage: { type: "create-instance", newHeight: barHeight } },
+      {
+        pluginMessage: {
+          type: "create-instance",
+          newHeight: barHeight,
+          numBars: numBars,
+        },
+      },
       "*",
     );
   };
@@ -22,20 +32,10 @@ export function App() {
     const target = event.target as HTMLInputElement;
     setNumBars(parseInt(target.value) || 1);
   };
-  const updateBars = () => {
-    parent.postMessage(
-      { pluginMessage: { type: "update-bars", barHeight, numBars } },
-      "*",
-    );
-  };
-
-  const addBars = () => {
-    parent.postMessage({ pluginMessage: { type: "add-bars", numBars } }, "*");
-  };
 
   return (
     <div className="container">
-      <h2>Update Chart</h2>
+      <h2>Create Chart Instance</h2>
 
       <label>
         Bar Height:
@@ -50,9 +50,8 @@ export function App() {
         Number of Bars:
         <input type="number" value={numBars} onChange={handleNumBarsChange} />
       </label>
+
       <button onClick={handleCreateInstance}>Create Chart Instance</button>
-      <button onClick={updateBars}>Update Bars</button>
-      <button onClick={addBars}>Add Bars</button>
     </div>
   );
 }
