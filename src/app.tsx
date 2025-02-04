@@ -21,7 +21,6 @@ export function App() {
   };
 
   const handleCreateComponent = () => {
-    console.log("Sending message: create-components"); // Debugging Log
     parent.postMessage(
       { pluginMessage: { type: "create-components", count } },
       "*",
