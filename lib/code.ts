@@ -1,67 +1,50 @@
-// This plugin will open a window to prompt the user to enter a number, and
-// it will then create that many rectangles on the screen.
+figma.showUI(__html__, { width: 400, height: 300 });
 
-// This file holds the main code for plugins. Code in this file has access to
-// the *figma document* via the figma global object.
-// You can access browser APIs in the <script> tag inside "ui.html" which has a
-// full browser environment (See https://www.figma.com/plugin-docs/how-plugins-run).
+figma.ui.onmessage = (msg) => {
+  if (msg.type === "create-instance") {
+    const selectedNode = figma.currentPage.selection[0];
 
-// This shows the HTML page in "ui.html".
-figma.showUI(__html__, { width: 500, height: 500 });
-
-// Calls to "parent.postMessage" from within the HTML page will trigger this
-// callback. The callback will be passed the "pluginMessage" property of the
-// posted message.
-figma.ui.onmessage = async (msg: { type: string; count: number }) => {
-  // One way of distinguishing between different types of messages sent from
-  // your HTML page is to use an object with a "type" property like this.
-  if (msg.type === "create-shapes") {
-    // This plugin creates rectangles on the screen.
-    const numberOfRectangles = msg.count;
-
-    const nodes: SceneNode[] = [];
-    for (let i = 0; i < numberOfRectangles; i++) {
-      const rect = figma.createRectangle();
-      rect.x = i * 150;
-      rect.fills = [{ type: "SOLID", color: { r: 1, g: 0.5, b: 0 } }];
-      figma.currentPage.appendChild(rect);
-      nodes.push(rect);
+    if (!selectedNode) {
+      console.error("❌ No selection found.");
+      figma.notify(
+        "❌ Please select 'Single Column Chart' before running the plugin.",
+      );
+      return;
     }
-    figma.currentPage.selection = nodes;
-    figma.viewport.scrollAndZoomIntoView(nodes);
-  } else if (msg.type === "create-components") {
-    // Create a component instead of a rectangle
-    const component = figma.createComponent();
-    component.name = "Custom Component";
 
-    // Set component size
-    component.resize(200, 150);
+    // Ensure it's a component
+    if (selectedNode.type !== "COMPONENT") {
+      console.error("❌ Selected item is not a component.");
+      figma.notify("❌ The selected item must be a component.");
+      return;
+    }
 
-    // Set a background fill
-    component.fills = [{ type: "SOLID", color: { r: 0, g: 0.5, b: 1 } }];
+    // Create an instance
+    let chartInstance = (selectedNode as ComponentNode).createInstance();
+    figma.currentPage.appendChild(chartInstance);
+    figma.currentPage.selection = [chartInstance];
+    figma.viewport.scrollAndZoomIntoView([chartInstance]);
 
-    // Add a text layer inside the component
-    const text = figma.createText();
-    text.characters = "Hello, Component!";
-    text.resize(180, 40);
-    text.x = 10;
-    text.y = 55;
+    console.log("🎉 Instance successfully created!");
 
-    // Load font before applying text (important!)
-    await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+    // Try finding the bar element inside the instance
+    const barElement = chartInstance.findOne(
+      (node) => node.name === "Bar" && node.type === "RECTANGLE",
+    ) as RectangleNode;
 
-    // Append text inside the component
-    component.appendChild(text);
+    if (!barElement) {
+      console.error("❌ Could not find the Bar element inside the instance.");
+      figma.notify("❌ Bar element not found.");
+      return;
+    }
 
-    // Add the component to the current page
-    figma.currentPage.appendChild(component);
+    console.log("📏 Found Bar Element:", barElement);
 
-    // Select and zoom into the component
-    figma.currentPage.selection = [component];
-    figma.viewport.scrollAndZoomIntoView([component]);
+    // Resize the bar
+    const newHeight = msg.newHeight || 100; // Default height if none is provided
+    barElement.resize(barElement.width, newHeight);
+    console.log(`📏 Updated Bar height to: ${newHeight}px`);
+
+    figma.notify("✅ Bar height updated!");
   }
-
-  // Make sure to close the plugin when you're done. Otherwise the plugin will
-  // keep running, which shows the cancel button at the bottom of the screen.
-  figma.closePlugin();
 };
