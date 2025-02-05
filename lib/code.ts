@@ -3,7 +3,6 @@ figma.showUI(__html__, { width: 400, height: 300 });
 figma.ui.onmessage = async (msg) => {
   console.log("📩 Message received from UI:", msg);
 
-  // ✅ Step 1: Get the selected instance
   const selectedNodes = figma.currentPage.selection;
   if (selectedNodes.length === 0) {
     figma.notify("❌ No component selected!");
@@ -15,8 +14,6 @@ figma.ui.onmessage = async (msg) => {
     figma.notify("❌ Selected item is not an instance of a component!");
     return;
   }
-
-  // ✅ Step 2: Clone the instance and position it
   let newInstance = selectedComponent.clone();
   newInstance.name = "Generated Chart";
   newInstance.x += 300;
@@ -24,7 +21,6 @@ figma.ui.onmessage = async (msg) => {
   figma.currentPage.appendChild(newInstance);
   newInstance = newInstance.detachInstance();
 
-  // ✅ Step 3: Locate "Column Chart" inside the instance
   let columnChart = newInstance.children.find(
     (node) =>
       node.type === "FRAME" &&
@@ -35,8 +31,14 @@ figma.ui.onmessage = async (msg) => {
     figma.notify("❌ 'Column Chart' not found!");
     return;
   }
+  //Gives Hug to the parent and H fill to columnChart
+  if (newInstance.layoutMode !== "NONE") {
+    newInstance.primaryAxisSizingMode = "AUTO"; // Allow dynamic height
+    console.log(
+      "✅ Adjusted 'Generated Chart' to support FILL height in children",
+    );
+  }
 
-  // ✅ Step 5: Locate "Bar Element" inside Column Chart
   let barElement = columnChart.children.find(
     (node) => node.name.trim().toLowerCase() === "bar element",
   );
@@ -46,7 +48,7 @@ figma.ui.onmessage = async (msg) => {
     return;
   }
 
-  // ✅ Step 6: Locate "Label Frame" and Load Font Once
+  // ✅ Locate 'Label Frame' and 'Label' text node in the original 'Bar Element'
   let labelFrame = barElement.children.find(
     (node) => node.name.trim().toLowerCase() === "label frame",
   );
@@ -61,46 +63,41 @@ figma.ui.onmessage = async (msg) => {
       node.type === "TEXT" && node.name.trim().toLowerCase() === "label",
   );
 
-  if (!labelText) {
+  if (!labelText || !labelText.fontName) {
     figma.notify("❌ 'Label' text node not found!");
     return;
   }
 
+  // ✅ Load font ONCE before modifying any text nodes
   try {
-    // ✅ Load font once before the loop
     await figma.loadFontAsync(labelText.fontName);
   } catch (error) {
     console.error("❌ Failed to load font:", error);
     return;
   }
 
-  // ✅ Step 9: Clone "Bar Element" multiple times inside "Column Chart"
   const numBars = msg.numBars || 1;
 
   for (let i = 0; i < numBars; i++) {
     let currentBarElement = i === 0 ? barElement : barElement.clone();
 
     if (!currentBarElement) {
-      console.error(`❌ Failed to clone 'Bar Element' for index ${i}`);
+      console.error(`❌ 'currentBarElement' is undefined at index ${i}`);
       continue;
     }
 
     if (i === 0) {
-      // ✅ Modify existing first 'Bar Element' (do not clone)
       let barWithSpace = barElement.children.find(
         (node) => node.type === "FRAME",
       );
-
-      let barFrame = null;
-      if (barWithSpace && barWithSpace.children) {
-        barFrame = barWithSpace.children.find((node) => node.type === "FRAME");
-      }
+      let barFrame = barWithSpace.children.find(
+        (node) => node.type === "FRAME",
+      );
 
       if (barFrame) {
         barFrame.paddingTop = 100 - msg.newHeight;
       }
     } else {
-      // ✅ Clone additional 'Bar Elements'
       currentBarElement.name = `Bar Element ${i + 1}`;
       if (currentBarElement.parent !== columnChart) {
         columnChart.appendChild(currentBarElement);
@@ -117,7 +114,6 @@ figma.ui.onmessage = async (msg) => {
       continue;
     }
 
-    // ✅ Find 'Label' inside 'Label Frame'
     let newLabelText = newLabelFrame.children.find(
       (node) =>
         node.type === "TEXT" && node.name.trim().toLowerCase() === "label",
@@ -130,21 +126,19 @@ figma.ui.onmessage = async (msg) => {
       continue;
     }
 
-    // ✅ Update label text using preloaded font
-    newLabelText.characters = `Label ${i + 1}`;
+    try {
+      // ✅ Modify text since font is already loaded
+      newLabelText.characters = `Label ${i + 1}`;
+    } catch (error) {
+      console.error(
+        `❌ Failed to update label text for '${currentBarElement.name}':`,
+        error,
+      );
+    }
   }
 
   figma.notify(`✅ Adjusted bar heights & created ${numBars} bar elements!`);
 
-  // ✅ Step 10: Resize "Column Chart" to fit all bars
-  try {
-    const totalBarHeight = numBars * (msg.newHeight + 10);
-    columnChart.resize(columnChart.width, totalBarHeight);
-  } catch (error) {
-    console.error("❌ Error while resizing 'Column Chart':", error);
-  }
-
-  // ✅ Step 11: Select & Zoom
   figma.currentPage.selection = [newInstance];
   figma.viewport.scrollAndZoomIntoView([newInstance]);
 };
