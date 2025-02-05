@@ -80,12 +80,12 @@ figma.ui.onmessage = async (msg) => {
 
   for (let i = 0; i < numBars; i++) {
     let currentBarElement = i === 0 ? barElement : barElement.clone();
-
+    console.log("currentBarElement", currentBarElement + " " + i);
     if (!currentBarElement) {
       console.error(`❌ 'currentBarElement' is undefined at index ${i}`);
       continue;
     }
-
+    const predefinedHeights = [20, 40, 30, 60, 80];
     if (i === 0) {
       let barWithSpace = barElement.children.find(
         (node) => node.type === "FRAME",
@@ -95,10 +95,22 @@ figma.ui.onmessage = async (msg) => {
       );
 
       if (barFrame) {
-        barFrame.paddingTop = 100 - msg.newHeight;
+        barFrame.paddingTop = 100 - predefinedHeights[i];
+        console.log("barFrame", barFrame.paddingTop);
       }
     } else {
       currentBarElement.name = `Bar Element ${i + 1}`;
+      let barWithSpace = currentBarElement.children.find(
+        (node) => node.type === "FRAME",
+      );
+      let barFrame = barWithSpace.children.find(
+        (node) => node.type === "FRAME",
+      );
+
+      if (barFrame) {
+        barFrame.paddingTop = 100 - predefinedHeights[i];
+        console.log("barFrame", barFrame.paddingTop);
+      }
       if (currentBarElement.parent !== columnChart) {
         columnChart.appendChild(currentBarElement);
       }
