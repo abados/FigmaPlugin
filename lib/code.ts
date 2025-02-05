@@ -40,7 +40,9 @@ figma.ui.onmessage = async (msg) => {
   }
 
   let barElement = columnChart.children.find(
-    (node) => node.name.trim().toLowerCase() === "bar element",
+    (node) =>
+      node.name.trim().toLowerCase() === "bar element" ||
+      node.name.trim().toLowerCase() === "bar element simple",
   );
 
   if (!barElement) {
@@ -60,7 +62,8 @@ figma.ui.onmessage = async (msg) => {
 
   let labelText = labelFrame.children.find(
     (node) =>
-      node.type === "TEXT" && node.name.trim().toLowerCase() === "label",
+      (node.type === "TEXT" && node.name.trim().toLowerCase() === "label") ||
+      node.name.trim().toLowerCase() === "bucket",
   );
 
   if (!labelText || !labelText.fontName) {
