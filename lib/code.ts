@@ -101,6 +101,9 @@ figma.ui.onmessage = async (msg) => {
         barFrame.paddingTop = 100 - predefinedHeights[i];
         console.log("barFrame", barFrame.paddingTop);
       }
+       let bar = barFrame.children.find((node) => node.type === "RECTANGLE");
+      if (bar) {
+        bar.fills = [{ type: "SOLID", color: { r: 0.5, g: 0.5, b: 0.5 } }];
     } else {
       currentBarElement.name = `Bar Element ${i + 1}`;
       let barWithSpace = currentBarElement.children.find(
@@ -117,6 +120,10 @@ figma.ui.onmessage = async (msg) => {
       if (currentBarElement.parent !== columnChart) {
         columnChart.appendChild(currentBarElement);
       }
+
+       let bar = barFrame.children.find((node) => node.type === "RECTANGLE");
+      if (bar) {
+        bar.fills = [{ type: "SOLID", color: { r: 0.5, g: 0.5, b: 0.5 } }];
     }
 
     // ✅ Locate 'Label Frame' inside each 'Bar Element'
