@@ -140,8 +140,10 @@ figma.ui.onmessage = async (msg) => {
 
       let bar = barFrame.children.find((node) => node.type === "RECTANGLE");
       if (bar) {
+        bar.constraints = { horizontal: "STRETCH", vertical: "STRETCH" };
         bar.fills = [{ type: "SOLID", color: { r: 0.7, g: 0.5, b: 0.3 } }];
         bar.resize(bar.width, predefinedHeights[i]);
+        //br.height = predefinedHeights[i];
       }
     }
 
@@ -158,7 +160,8 @@ figma.ui.onmessage = async (msg) => {
     // Locate text node named "Label"
     let newLabelText = newLabelFrame.children.find(
       (node) =>
-        node.type === "TEXT" && node.name.trim().toLowerCase() === "label",
+        (node.type === "TEXT" && node.name.trim().toLowerCase() === "label") ||
+        node.name.trim().toLowerCase() === "bucket",
     );
 
     if (!newLabelText) {
