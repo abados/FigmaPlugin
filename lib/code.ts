@@ -30,29 +30,15 @@ figma.ui.onmessage = async (msg) => {
       node.name.trim().toLowerCase() === "column chart",
   );
 
+  columnChart.layoutMode = "HORIZONTAL"; // Arrange bars side by side
+  columnChart.primaryAxisSizingMode = "FIXED"; // Expand width automatically
+  columnChart.counterAxisSizingMode = "FIXED"; // Expand height automatically
+
+  console.log("🔍 Column Chart :", columnChart);
+
   if (!columnChart) {
     figma.notify("❌ 'Column Chart' not found!");
     return;
-  }
-
-  // ✅ Find or create the "bar container" inside "column chart"
-  let barContainer = columnChart.findOne(
-    (node) =>
-      node.type === "FRAME" &&
-      node.name.trim().toLowerCase() === "bar container",
-  );
-
-  if (!barContainer) {
-    barContainer = figma.createFrame();
-    barContainer.name = "Bar Container";
-    barContainer.layoutMode = "HORIZONTAL"; // Arrange bars side by side
-    barContainer.primaryAxisSizingMode = "AUTO"; // Expand width automatically
-    barContainer.counterAxisSizingMode = "AUTO"; // Expand height automatically
-    barContainer.paddingLeft = 10;
-    barContainer.paddingRight = 10;
-    barContainer.itemSpacing = 10; // Spacing between bars
-    columnChart.appendChild(barContainer);
-    console.log("✅ Created new barContainer inside columnChart");
   }
 
   // ✅ Find "Bar Element Simple" inside "Column Chart"
@@ -69,7 +55,7 @@ figma.ui.onmessage = async (msg) => {
 
   // ✅ Move the first bar inside `barContainer`
   originalBarElement = originalBarElement.detachInstance();
-  barContainer.appendChild(originalBarElement);
+  columnChart.appendChild(originalBarElement);
   console.log("✅ Detached and moved first bar inside barContainer");
 
   const numBars = msg.numBars || 1;
@@ -92,7 +78,7 @@ figma.ui.onmessage = async (msg) => {
     console.log("✅ Created Bar Element", { index: i, currentBarElement });
 
     // ✅ Append cloned bars into the barContainer
-    barContainer.appendChild(currentBarElement);
+    columnChart.appendChild(currentBarElement);
     console.log(`✅ Appended cloned bar to barContainer (index: ${i})`);
 
     // ✅ Fix layout alignment so bars appear properly inside barContainer
@@ -111,7 +97,6 @@ figma.ui.onmessage = async (msg) => {
       console.warn(`⚠️ No 'Bar Frame' found in '${currentBarElement.name}'`);
       continue;
     }
- 
 
     // ✅ Resize the "Bar" (rectangle)
     let bar = barFrame.findOne(
@@ -143,7 +128,7 @@ figma.ui.onmessage = async (msg) => {
     let newLabelText = newLabelFrame.findOne(
       (node) =>
         (node.type === "TEXT" && node.name.trim().toLowerCase() === "label") ||
-        node.name.trim().toLowerCase() === "bucket",
+        node.name.trim().toLowerCase() === "bucket 1",
     );
 
     if (newLabelText) {
@@ -155,7 +140,6 @@ figma.ui.onmessage = async (msg) => {
 
   // ✅ Final Debugging Log to Check All Bars in Column Chart
   console.log("🔍 Final columnChart Children:", columnChart.children);
-  console.log("🔍 Final barContainer Children:", barContainer.children);
   figma.notify(`✅ Adjusted bar heights & created ${numBars} bar elements!`);
 
   // Select the new instance and bring it into view
