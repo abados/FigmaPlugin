@@ -104,10 +104,14 @@ figma.ui.onmessage = async (msg) => {
     ) as RectangleNode | null;
 
     if (bar) {
-      bar.constraints = { horizontal: "STRETCH", vertical: "STRETCH" };
+      bar.constraints = { horizontal: "STRETCH", vertical: "SCALE" };
+
       const height = predefinedHeights[i % predefinedHeights.length];
       bar.resize(bar.width, height);
+      bar.y = barFrame.height - bar.height;
       bar.fills = [{ type: "SOLID", color: { r: 0.7, g: 0.5, b: 0.3 } }];
+      console.log("contraint ", bar.constraints);
+      console.log("🔍 barYPosition", bar.y, "   barHeight", bar.height);
       console.log(`✅ Resized Bar: New Height = ${height}`);
     } else {
       console.warn(
