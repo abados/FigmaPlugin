@@ -15,7 +15,7 @@ figma.ui.onmessage = async (msg) => {
     return;
   }
 
-  // Clone the selected component instance
+  // ✅ Clone and detach the selected component instance
   let newInstance = selectedComponent.clone();
   newInstance.name = "Generated Chart";
   newInstance.x += 300;
@@ -23,7 +23,7 @@ figma.ui.onmessage = async (msg) => {
   figma.currentPage.appendChild(newInstance);
   newInstance = newInstance.detachInstance();
 
-  // Find the "column chart" frame in the new instance
+  // ✅ Find the "column chart" frame in the new instance
   let columnChart = newInstance.children.find(
     (node) =>
       node.type === "FRAME" &&
@@ -35,120 +35,103 @@ figma.ui.onmessage = async (msg) => {
     return;
   }
 
-  // Gives "Hug" to the parent and "FILL" height to the columnChart
-  if (newInstance.layoutMode !== "NONE") {
-    newInstance.primaryAxisSizingMode = "AUTO"; // Allow dynamic height
-    console.log(
-      "✅ Adjusted 'Generated Chart' to support FILL height in children",
-    );
+  // ✅ Find or create the "bar container" inside "column chart"
+  let barContainer = columnChart.findOne(
+    (node) =>
+      node.type === "FRAME" &&
+      node.name.trim().toLowerCase() === "bar container",
+  );
+
+  if (!barContainer) {
+    barContainer = figma.createFrame();
+    barContainer.name = "Bar Container";
+    barContainer.layoutMode = "HORIZONTAL"; // Arrange bars side by side
+    barContainer.primaryAxisSizingMode = "AUTO"; // Expand width automatically
+    barContainer.counterAxisSizingMode = "AUTO"; // Expand height automatically
+    barContainer.paddingLeft = 10;
+    barContainer.paddingRight = 10;
+    barContainer.itemSpacing = 10; // Spacing between bars
+    columnChart.appendChild(barContainer);
+    console.log("✅ Created new barContainer inside columnChart");
   }
 
-  // Find the "bar element" or "bar element simple" inside the column chart
-  let barElement = columnChart.children.find(
+  // ✅ Find "Bar Element Simple" inside "Column Chart"
+  let originalBarElement = columnChart.findOne(
     (node) =>
-      node.name.trim().toLowerCase() === "bar element" ||
+      node.type === "INSTANCE" &&
       node.name.trim().toLowerCase() === "bar element simple",
   );
 
-  if (!barElement) {
-    figma.notify("❌ 'Bar Element' not found!");
+  if (!originalBarElement) {
+    figma.notify("❌ 'Bar Element Simple' not found!");
     return;
   }
 
-  // Locate "Label Frame" inside the bar element
-  let labelFrame = barElement.children.find(
-    (node) => node.name.trim().toLowerCase() === "label frame",
-  );
-
-  if (!labelFrame) {
-    figma.notify("❌ 'Label Frame' not found!");
-    return;
-  }
-
-  // Locate "Label" text node (or "bucket") inside the label frame
-  let labelText = labelFrame.children.find(
-    (node) =>
-      (node.type === "TEXT" && node.name.trim().toLowerCase() === "label") ||
-      node.name.trim().toLowerCase() === "bucket",
-  );
-
-  if (!labelText || !labelText.fontName) {
-    figma.notify("❌ 'Label' text node not found!");
-    return;
-  }
-
-  // Load the font once before modifying any text nodes
-  try {
-    await figma.loadFontAsync(labelText.fontName);
-  } catch (error) {
-    console.error("❌ Failed to load font:", error);
-    return;
-  }
+  // ✅ Move the first bar inside `barContainer`
+  originalBarElement = originalBarElement.detachInstance();
+  barContainer.appendChild(originalBarElement);
+  console.log("✅ Detached and moved first bar inside barContainer");
 
   const numBars = msg.numBars || 1;
-
-  // Predefined bar heights (feel free to adjust or extend)
   const predefinedHeights = [20, 40, 30, 60, 80];
 
   for (let i = 0; i < numBars; i++) {
-    // Reuse barElement for i=0, clone for subsequent bars
-    let currentBarElement = i === 0 ? barElement : barElement.clone();
-    console.log("currentBarElement", currentBarElement + " " + i);
+    console.log(`🔄 Iteration: ${i} | Cloning Bar Element...`);
+
+    // ✅ Clone from the detached version inside barContainer
+    let currentBarElement =
+      i === 0 ? originalBarElement : originalBarElement.clone();
 
     if (!currentBarElement) {
-      console.error(`❌ 'currentBarElement' is undefined at index ${i}`);
+      console.error(
+        `❌ Cloning failed for iteration ${i}, currentBarElement is undefined.`,
+      );
       continue;
     }
 
-    if (i === 0) {
-      // For the very first bar element
-      let barWithSpace = barElement.children.find(
-        (node) => node.type === "FRAME",
-      );
-      let barFrame = barWithSpace.children.find(
-        (node) => node.type === "FRAME",
-      );
+    console.log("✅ Created Bar Element", { index: i, currentBarElement });
 
-      if (barFrame) {
-        barFrame.paddingTop = 100 - predefinedHeights[i];
-        console.log("barFrame", barFrame.paddingTop);
-      }
+    // ✅ Append cloned bars into the barContainer
+    barContainer.appendChild(currentBarElement);
+    console.log(`✅ Appended cloned bar to barContainer (index: ${i})`);
 
-      let bar = barFrame.children.find((node) => node.type === "RECTANGLE");
-      if (bar) {
-        bar.fills = [{ type: "SOLID", color: { r: 0.5, g: 0.5, b: 0.5 } }];
-      }
+    // ✅ Fix layout alignment so bars appear properly inside barContainer
+    currentBarElement.layoutAlign = "STRETCH";
+    currentBarElement.layoutGrow = 1;
+
+    console.log(`📍 New Bar Position: index=${i}`);
+
+    // ✅ Ensure the "Bar Frame" exists
+    let barFrame = currentBarElement.findOne(
+      (node) =>
+        node.type === "FRAME" && node.name.trim().toLowerCase() === "bar frame",
+    );
+
+    if (!barFrame) {
+      console.warn(`⚠️ No 'Bar Frame' found in '${currentBarElement.name}'`);
+      continue;
+    }
+ 
+
+    // ✅ Resize the "Bar" (rectangle)
+    let bar = barFrame.findOne(
+      (node) => node.type === "RECTANGLE",
+    ) as RectangleNode | null;
+
+    if (bar) {
+      bar.constraints = { horizontal: "STRETCH", vertical: "STRETCH" };
+      const height = predefinedHeights[i % predefinedHeights.length];
+      bar.resize(bar.width, height);
+      bar.fills = [{ type: "SOLID", color: { r: 0.7, g: 0.5, b: 0.3 } }];
+      console.log(`✅ Resized Bar: New Height = ${height}`);
     } else {
-      // For every other bar element
-      currentBarElement.name = `Bar Element ${i + 1}`;
-      let barWithSpace = currentBarElement.children.find(
-        (node) => node.type === "FRAME",
+      console.warn(
+        `⚠️ No 'Bar' rectangle found inside '${currentBarElement.name}'`,
       );
-      let barFrame = barWithSpace.children.find(
-        (node) => node.type === "FRAME",
-      );
-
-      if (barFrame) {
-        barFrame.paddingTop = 100 - predefinedHeights[i];
-        console.log("barFrame", barFrame.paddingTop);
-      }
-
-      // Ensure the cloned bar is actually added to the columnChart
-      if (currentBarElement.parent !== columnChart) {
-        columnChart.appendChild(currentBarElement);
-      }
-
-      let bar = barFrame.children.find((node) => node.type === "RECTANGLE");
-      if (bar) {
-        bar.constraints = { horizontal: "STRETCH", vertical: "STRETCH" };
-        bar.fills = [{ type: "SOLID", color: { r: 0.7, g: 0.5, b: 0.3 } }];
-        bar.resize(bar.width, predefinedHeights[i]);
-        //br.height = predefinedHeights[i];
-      }
     }
 
-    // Locate "Label Frame" again inside each bar element
-    let newLabelFrame = currentBarElement.children.find(
+    // ✅ Locate "Label Frame" & Update Label
+    let newLabelFrame = currentBarElement.findOne(
       (node) => node.name.trim().toLowerCase() === "label frame",
     );
 
@@ -157,31 +140,22 @@ figma.ui.onmessage = async (msg) => {
       continue;
     }
 
-    // Locate text node named "Label"
-    let newLabelText = newLabelFrame.children.find(
+    let newLabelText = newLabelFrame.findOne(
       (node) =>
         (node.type === "TEXT" && node.name.trim().toLowerCase() === "label") ||
         node.name.trim().toLowerCase() === "bucket",
     );
 
-    if (!newLabelText) {
-      console.warn(
-        `⚠️ No 'Label' text node found in '${currentBarElement.name}'`,
-      );
-      continue;
-    }
-
-    try {
-      // Update the label text
+    if (newLabelText) {
+      await figma.loadFontAsync(newLabelText.fontName as FontName);
       newLabelText.characters = `Label ${i + 1}`;
-    } catch (error) {
-      console.error(
-        `❌ Failed to update label text for '${currentBarElement.name}':`,
-        error,
-      );
+      console.log(`✅ Updated Label Text for Bar ${i + 1}`);
     }
   }
 
+  // ✅ Final Debugging Log to Check All Bars in Column Chart
+  console.log("🔍 Final columnChart Children:", columnChart.children);
+  console.log("🔍 Final barContainer Children:", barContainer.children);
   figma.notify(`✅ Adjusted bar heights & created ${numBars} bar elements!`);
 
   // Select the new instance and bring it into view
