@@ -45,7 +45,7 @@ figma.ui.onmessage = async (msg) => {
   let originalBarElement = columnChart.findOne(
     (node) =>
       node.type === "INSTANCE" &&
-      node.name.trim().toLowerCase() === "bar element simple",
+      node.name.trim().toLowerCase() === "bar element simple" || node.name.trim().toLowerCase() === "bar element",
   );
 
   if (!originalBarElement) {
