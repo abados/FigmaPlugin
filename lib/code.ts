@@ -44,8 +44,9 @@ figma.ui.onmessage = async (msg) => {
   // ✅ Find "Bar Element Simple" inside "Column Chart"
   let originalBarElement = columnChart.findOne(
     (node) =>
-      node.type === "INSTANCE" &&
-      node.name.trim().toLowerCase() === "bar element simple" || node.name.trim().toLowerCase() === "bar element",
+      (node.type === "INSTANCE" &&
+        node.name.trim().toLowerCase() === "bar element simple") ||
+      node.name.trim().toLowerCase() === "bar element",
   );
 
   if (!originalBarElement) {
@@ -55,37 +56,33 @@ figma.ui.onmessage = async (msg) => {
 
   // ✅ Move the first bar inside `barContainer`
   originalBarElement = originalBarElement.detachInstance();
-  columnChart.appendChild(originalBarElement);
+  //columnChart.appendChild(originalBarElement);
   console.log("✅ Detached and moved first bar inside barContainer");
 
+  const numStackedBars = 3; // Number of stacked segments in each bar
+  const stackedHeights = [
+    [10, 30, 40], // Heights for Bar 1
+    [0, 25, 35], // Heights for Bar 2
+    [15, 0, 50], // Heights for Bar 3
+    [30, 30, 20], // Heights for Bar 4
+    [25, 35, 20], // Heights for Bar 5
+  ]; // Heights for each stacked segment in each ba
   const numBars = msg.numBars || 1;
-  const predefinedHeights = [20, 40, 30, 60, 80];
+  //const predefinedHeights = [20, 40, 30, 60, 80];
 
   for (let i = 0; i < numBars; i++) {
-    console.log(`🔄 Iteration: ${i} | Cloning Bar Element...`);
-
     // ✅ Clone from the detached version inside barContainer
     let currentBarElement =
       i === 0 ? originalBarElement : originalBarElement.clone();
 
-    if (!currentBarElement) {
-      console.error(
-        `❌ Cloning failed for iteration ${i}, currentBarElement is undefined.`,
-      );
-      continue;
-    }
-
-    console.log("✅ Created Bar Element", { index: i, currentBarElement });
-
     // ✅ Append cloned bars into the barContainer
     columnChart.appendChild(currentBarElement);
+    currentBarElement.name = `Bar Element ${i + 1}`;
     console.log(`✅ Appended cloned bar to barContainer (index: ${i})`);
 
     // ✅ Fix layout alignment so bars appear properly inside barContainer
     currentBarElement.layoutAlign = "STRETCH";
     currentBarElement.layoutGrow = 1;
-
-    console.log(`📍 New Bar Position: index=${i}`);
 
     // ✅ Ensure the "Bar Frame" exists
     let barFrame = currentBarElement.findOne(
@@ -98,25 +95,31 @@ figma.ui.onmessage = async (msg) => {
       continue;
     }
 
-    // ✅ Resize the "Bar" (rectangle)
-    let bar = barFrame.findOne(
+    let yOffset = barFrame.height; // Start from the bottom of the barFrame
+    const colors = [
+      { r: 0.1, g: 0.6, b: 0.9 },
+      { r: 0.8, g: 0.5, b: 0.4 },
+      { r: 0.3, g: 0.7, b: 0.2 },
+    ]; // Colors for stacked segments
+
+    let originalBar = barFrame.findOne(
       (node) => node.type === "RECTANGLE",
     ) as RectangleNode | null;
 
-    if (bar) {
-      bar.constraints = { horizontal: "STRETCH", vertical: "SCALE" };
+    for (let j = 0; j < numStackedBars; j++) {
+      let barHeight = stackedHeights[i % stackedHeights.length][j]; // Pick height
+      console.log(`📏 Setting height for stacked bar ${j}: ${barHeight}`);
+      // ✅ Clone the original bar for stacking
+      if (barHeight === 0) continue;
 
-      const height = predefinedHeights[i % predefinedHeights.length];
-      bar.resize(bar.width, height);
-      bar.y = barFrame.height - bar.height;
-      bar.fills = [{ type: "SOLID", color: { r: 0.7, g: 0.5, b: 0.3 } }];
-      console.log("contraint ", bar.constraints);
-      console.log("🔍 barYPosition", bar.y, "   barHeight", bar.height);
-      console.log(`✅ Resized Bar: New Height = ${height}`);
-    } else {
-      console.warn(
-        `⚠️ No 'Bar' rectangle found inside '${currentBarElement.name}'`,
-      );
+      let stackedBar = j === 0 ? originalBar : originalBar.clone();
+      stackedBar.name = `Stacked Bar ${j + 1}`;
+      barFrame.appendChild(stackedBar);
+      // ✅ Resize and reposition each stacked bar
+      stackedBar.resize(stackedBar.width, barHeight);
+      stackedBar.y = yOffset - barHeight;
+      stackedBar.fills = [{ type: "SOLID", color: colors[j] }];
+      yOffset -= barHeight; // Move up for the next stacked bar
     }
 
     // ✅ Locate "Label Frame" & Update Label
