@@ -17,9 +17,13 @@ export function App() {
       }
 
       const { type, jsonStr, filename, chartData } = event.data.pluginMessage;
+      if (mode === "create" && type !== "showModifyUI") {
+        console.warn("🚨 Ignoring UI update while chart is creating...");
+        return;
+      }
 
-      if (type === "showDefaultUI") {
-        console.log("🎨 Switching to 'Create Mode'");
+      if (type === "showDefaultUI" && mode !== "create") {
+        console.log("🎨 Switching to 'Create Mode' (only if not creating)");
         setMode("create");
       }
 
@@ -104,6 +108,39 @@ export function App() {
       },
       "*",
     );
+  };
+
+  const handleUploadJSON = async (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    if (!target.files || target.files.length === 0) return;
+
+    const file = target.files[0];
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const jsonData = JSON.parse(e.target?.result as string);
+        console.log("📂 Imported JSON data:", jsonData);
+
+        // Send imported data to Figma
+        parent.postMessage(
+          {
+            pluginMessage: {
+              type: "import-json",
+              chartData: jsonData,
+            },
+          },
+          "*",
+        );
+
+        // Update UI state
+        setChartData(jsonData);
+      } catch (error) {
+        console.error("❌ Error parsing JSON:", error);
+      }
+    };
+
+    reader.readAsText(file);
   };
 
   const handleChartDataChange = (index: number, key: string, event: Event) => {
@@ -194,6 +231,7 @@ export function App() {
           <button onClick={handleDownloadInstance}>
             Download Chart Instance
           </button>
+          <input type="file" accept=".json" onChange={handleUploadJSON} />
         </>
       )}
     </div>

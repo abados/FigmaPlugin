@@ -2,7 +2,7 @@ figma.showUI(__html__, { width: 400, height: 300 });
 
 figma.on("run", () => {
   console.log("🔄 Plugin opened, checking selection...");
-  checkSelectionAndUpdateUI();
+  setTimeout(() => checkSelectionAndUpdateUI(), 100);
 });
 
 /**
@@ -13,16 +13,24 @@ figma.on("selectionchange", () => {
   console.log("🔄 Selection changed, checking selection...");
   checkSelectionAndUpdateUI();
 });
+let isCreatingChart = false;
 
 function checkSelectionAndUpdateUI() {
-  const selectedNodes = figma.currentPage.selection;
+  console.log(
+    "🔄 checkSelectionAndUpdateUI triggered | isCreatingChart:",
+    isCreatingChart,
+  );
 
-  if (selectedNodes.length === 0) {
-    console.log("🟡 No selection detected. Switching to default UI.");
-    figma.ui.postMessage({ type: "showDefaultUI" });
+  if (isCreatingChart) {
+    console.log("🚨 Chart is being created, skipping UI update.");
     return;
   }
-
+  const selectedNodes = figma.currentPage.selection;
+  if (selectedNodes.length === 0) {
+    console.log("🟡 No selection detected. Switching to default UI.");
+    figma.ui.postMessage({ type: "showDefaultUI" }); // 🚨 This sends the message!
+    return;
+  }
   const selectedObject = selectedNodes[0];
 
   if (selectedObject.type === "INSTANCE") {
@@ -38,7 +46,6 @@ function checkSelectionAndUpdateUI() {
     console.log("📊 Selected a Generated Chart. Extracting data...");
     const chartData = extractChartData(selectedObject);
     console.log("📊 Sending extracted chart data to UI:", chartData);
-
     figma.ui.postMessage({
       type: "showModifyUI",
       chartData: chartData,
@@ -53,6 +60,15 @@ function checkSelectionAndUpdateUI() {
 
 figma.ui.onmessage = async (msg) => {
   console.log("📩 Message received from UI:", msg);
+
+  if (msg.type === "chart-created") {
+    console.log("🎨 Chart was created, switching to Modify Mode.");
+    figma.ui.postMessage({
+      type: "showModifyUI",
+      chartData: msg.chartData,
+    });
+    return;
+  }
 
   const selectedNodes = figma.currentPage.selection;
   if (selectedNodes.length === 0) {
@@ -69,7 +85,7 @@ figma.ui.onmessage = async (msg) => {
     });
 
     // ✅ Create a new chart based on the selected instance
-    await createNewChart(selectedObject, msg);
+    await createNewChart(selectedObject, msg, false);
     return;
   } else if (
     selectedObject.name === "Generated Chart" &&
@@ -77,6 +93,14 @@ figma.ui.onmessage = async (msg) => {
   ) {
     console.log("📊 Selected a Generated Chart. Extracting data...");
 
+    if (msg.type === "import-json") {
+      await createNewChart(selectedObject, msg, true);
+
+      figma.ui.postMessage({
+        type: "showModifyUI",
+        chartData: msg.chartData,
+      });
+    }
     const chartData = extractChartData(selectedObject);
     console.log("📊 Sending extracted chart data to UI:", chartData);
     figma.ui.postMessage({
@@ -88,22 +112,52 @@ figma.ui.onmessage = async (msg) => {
     return;
   }
 };
-async function createNewChart(selectedComponent: InstanceNode, msg: any) {
-  let newInstance = selectedComponent.clone();
-  newInstance.name = "Generated Chart";
-  newInstance.x += 300;
-  newInstance.y += 100;
-  figma.currentPage.appendChild(newInstance);
-  newInstance = newInstance.detachInstance();
+
+const DEFAULT_STACKED_HEIGHTS = [
+  [10, 30, 40],
+  [0, 25, 80],
+  [15, 0, 50],
+  [30, 30, 100],
+  [25, 35, 20],
+];
+
+const DEFAULT_COLORS = [
+  { r: 0.1, g: 0.6, b: 0.9 }, // Blue
+  { r: 0.8, g: 0.5, b: 0.4 }, // Brown
+  { r: 0.3, g: 0.7, b: 0.2 }, // Green
+];
+
+async function createNewChart(
+  selectedComponent: InstanceNode | FrameNode,
+  msg: any,
+  isModifyMode: boolean,
+) {
+  isCreatingChart = true;
+  figma.currentPage.selection = [selectedComponent];
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  let newInstance: FrameNode;
+
+  if (isModifyMode) {
+    newInstance = selectedComponent as FrameNode;
+  } else {
+    newInstance = selectedComponent.clone();
+    newInstance.name = "Generated Chart";
+    newInstance.x += 300;
+    newInstance.y += 100;
+    figma.currentPage.appendChild(newInstance);
+    newInstance = newInstance.detachInstance();
+  }
 
   let columnChart = newInstance.findChild(
     (node) =>
       node.type === "FRAME" &&
       node.name.trim().toLowerCase() === "column chart",
   );
-
+  console.log("+++++++++++columnChart", columnChart);
   if (!columnChart) {
     figma.notify("❌ 'Column Chart' not found!");
+    isCreatingChart = false; // ✅ Allow selection updates
+    // ✅ Re-enable selection change
     return;
   }
 
@@ -119,7 +173,7 @@ async function createNewChart(selectedComponent: InstanceNode, msg: any) {
         node.name.trim().toLowerCase() === "bar element simple") ||
       node.name.trim().toLowerCase() === "bar element",
   );
-
+  console.log("+++++++++++templateBarElement", templateBarElement);
   if (!templateBarElement) {
     figma.notify("❌ 'Bar Element Simple' not found!");
     return;
@@ -132,7 +186,7 @@ async function createNewChart(selectedComponent: InstanceNode, msg: any) {
     (node) =>
       node.type === "FRAME" && node.name.trim().toLowerCase() === "bar frame",
   );
-
+  console.log("+++++++++++templateBarFrame", templateBarFrame);
   if (!templateBarFrame) {
     figma.notify("❌ 'Bar Frame' not found in template!");
     return;
@@ -142,6 +196,7 @@ async function createNewChart(selectedComponent: InstanceNode, msg: any) {
     (node) => node.type === "RECTANGLE",
   ) as RectangleNode | null;
 
+  console.log("+++++++++++templateBarRect", templateBarRect);
   if (!templateBarRect) {
     figma.notify("❌ No base rectangle found in template!");
     return;
@@ -157,30 +212,33 @@ async function createNewChart(selectedComponent: InstanceNode, msg: any) {
       console.log(`🗑 Removing Bar 0 from template: ${bar.name}`);
       bar.remove();
     });
+  console.log("+++++++++++templateBarFrame", templateBarFrame);
 
-  const numStackedBars = 3;
-  const stackedHeights = [
-    [10, 30, 40],
-    [0, 25, 80],
-    [15, 0, 50],
-    [30, 30, 100],
-    [25, 35, 20],
-  ];
-  const numBars = msg.numBars || 5;
-  const colors = [
-    { r: 0.1, g: 0.6, b: 0.9 },
-    { r: 0.8, g: 0.5, b: 0.4 },
-    { r: 0.3, g: 0.7, b: 0.2 },
-  ];
+  const maxFromDefaults = Math.max(
+    ...DEFAULT_STACKED_HEIGHTS.map((arr) => arr.length),
+  );
+  const maxFromJson = msg.chartData
+    ? Math.max(...msg.chartData.bars.map((b: any) => b.stackedBars.length), 0)
+    : 0;
+
+  const numStackedBars = isModifyMode ? maxFromJson : maxFromDefaults;
+
+  const defaultNumBars = msg.numBars;
+  const jsonNumBars = msg.chartData ? msg.chartData.bars.length : 0;
+  const numBars = isModifyMode ? jsonNumBars : defaultNumBars;
 
   for (let i = 0; i < numBars; i++) {
     let currentBarElement;
     let barFrame;
 
-    if (i === 0) {
+    if (i === 0 && !isModifyMode) {
       currentBarElement = templateBarElement;
+      console.log("currentBarElement", currentBarElement);
+      console.log("+++++++++++++++++", i);
     } else {
       currentBarElement = templateBarElement.clone();
+      console.log("currentBarElement", currentBarElement);
+      console.log("+++++++++++++++++", i);
     }
 
     columnChart.appendChild(currentBarElement);
@@ -199,7 +257,7 @@ async function createNewChart(selectedComponent: InstanceNode, msg: any) {
       console.warn(`⚠️ No 'Bar Frame' found in '${currentBarElement.name}'`);
       continue;
     }
-
+    console.log("++++++++barFrame.height", barFrame.height);
     let yOffset = barFrame.height; // ✅ Fix: Start from the bottom of the frame
     // ✅ Remove "Bar 0" inside each cloned `barFrame`
     barFrame
@@ -215,8 +273,25 @@ async function createNewChart(selectedComponent: InstanceNode, msg: any) {
       .forEach((bar) => bar.remove());
     const barSpacing = 2;
     for (let j = 0; j < numStackedBars; j++) {
-      let barHeight = stackedHeights[i % stackedHeights.length][j];
-      console.log(`📏 Setting height for stacked bar ${j}: ${barHeight}`);
+      let barHeight;
+      let barColor;
+      console.log("++++++++isModifyMode", isModifyMode);
+      if (isModifyMode && msg.chartData) {
+        const stackedBarData =
+          msg.chartData.bars[i].stackedBars[j] || undefined;
+        if (!stackedBarData) continue;
+        console.log("++++++++stackedBarData.height", stackedBarData.height);
+        barHeight = stackedBarData.height;
+        barColor = stackedBarData.color;
+      } else {
+        console.log(
+          "barHeight",
+          DEFAULT_STACKED_HEIGHTS[i % DEFAULT_STACKED_HEIGHTS.length][j],
+        );
+        barHeight =
+          DEFAULT_STACKED_HEIGHTS[i % DEFAULT_STACKED_HEIGHTS.length][j] || 0;
+        barColor = DEFAULT_COLORS[j % DEFAULT_COLORS.length];
+      }
 
       if (barHeight === 0) continue;
 
@@ -226,10 +301,10 @@ async function createNewChart(selectedComponent: InstanceNode, msg: any) {
       stackedBar.visible = true;
       barFrame.appendChild(stackedBar);
       console.log("✅ Added stackedBar:", stackedBar.name);
-
+      console.log(barHeight);
       stackedBar.resize(barFrame.width, barHeight);
       stackedBar.y = yOffset - barHeight; // ✅ Fix: Position bars correctly
-      stackedBar.fills = [{ type: "SOLID", color: colors[j] }];
+      stackedBar.fills = [{ type: "SOLID", color: barColor }];
       yOffset -= barHeight + barSpacing; // ✅ Move the offset up for the next stacked bar
     }
 
@@ -247,18 +322,24 @@ async function createNewChart(selectedComponent: InstanceNode, msg: any) {
     if (newLabelText) {
       console.log(`Label ${i + 1}`);
       await figma.loadFontAsync(newLabelText.fontName as FontName);
-      newLabelText.characters = `Label ${i + 1}`;
+      newLabelText.characters = isModifyMode
+        ? msg.chartData.bars[i].label || `Label ${i + 1}`
+        : `Label ${i + 1}`;
       console.log(`✅ Updated Label Text for Bar ${i + 1}`);
     }
   }
-
+  isCreatingChart = false;
   console.log("🔍 Final columnChart Children:", columnChart.children);
   figma.notify(`✅ Adjusted bar heights & created ${numBars} bar elements!`);
-
   figma.currentPage.selection = [newInstance];
   figma.viewport.scrollAndZoomIntoView([newInstance]);
+
+  figma.ui.postMessage({
+    type: "chart-created",
+    chartData: extractChartData(newInstance),
+  });
   // ✅ Extract chart data and send to UI for download
-  const chartData = extractChartData(columnChart);
+  //const chartData = extractChartData(columnChart);
   //downloadJSON(chartData);
 }
 
