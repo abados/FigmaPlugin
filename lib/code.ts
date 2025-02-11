@@ -1,5 +1,56 @@
 figma.showUI(__html__, { width: 400, height: 300 });
 
+figma.on("run", () => {
+  console.log("🔄 Plugin opened, checking selection...");
+  checkSelectionAndUpdateUI();
+});
+
+/**
+ * ✅ Runs when the user changes selection.
+ * ✅ Updates UI dynamically.
+ */
+figma.on("selectionchange", () => {
+  console.log("🔄 Selection changed, checking selection...");
+  checkSelectionAndUpdateUI();
+});
+
+function checkSelectionAndUpdateUI() {
+  const selectedNodes = figma.currentPage.selection;
+
+  if (selectedNodes.length === 0) {
+    console.log("🟡 No selection detected. Switching to default UI.");
+    figma.ui.postMessage({ type: "showDefaultUI" });
+    return;
+  }
+
+  const selectedObject = selectedNodes[0];
+
+  if (selectedObject.type === "INSTANCE") {
+    console.log("📌 Selected an Instance. Showing default UI.");
+    figma.ui.postMessage({ type: "showDefaultUI" });
+    return;
+  }
+
+  if (
+    selectedObject.name === "Generated Chart" &&
+    selectedObject.type === "FRAME"
+  ) {
+    console.log("📊 Selected a Generated Chart. Extracting data...");
+    const chartData = extractChartData(selectedObject);
+    console.log("📊 Sending extracted chart data to UI:", chartData);
+
+    figma.ui.postMessage({
+      type: "showModifyUI",
+      chartData: chartData,
+    });
+    return;
+  }
+
+  // ✅ If selection is something else, fallback to default UI
+  console.log("⚠️ Selected an unsupported object. Showing default UI.");
+  figma.ui.postMessage({ type: "showDefaultUI" });
+}
+
 figma.ui.onmessage = async (msg) => {
   console.log("📩 Message received from UI:", msg);
 
@@ -9,12 +60,35 @@ figma.ui.onmessage = async (msg) => {
     return;
   }
 
-  const selectedComponent = selectedNodes[0];
-  if (selectedComponent.type !== "INSTANCE") {
-    figma.notify("❌ Selected item is not an instance of a component!");
+  const selectedObject = selectedNodes[0];
+
+  if (selectedObject.type === "INSTANCE") {
+    console.log("📌 Selected an Instance. Showing default UI.");
+    figma.ui.postMessage({
+      type: "showDefaultUI",
+    });
+
+    // ✅ Create a new chart based on the selected instance
+    await createNewChart(selectedObject, msg);
+    return;
+  } else if (
+    selectedObject.name === "Generated Chart" &&
+    selectedObject.type === "FRAME"
+  ) {
+    console.log("📊 Selected a Generated Chart. Extracting data...");
+
+    const chartData = extractChartData(selectedObject);
+    console.log("📊 Sending extracted chart data to UI:", chartData);
+    figma.ui.postMessage({
+      type: "downloadJSON",
+      jsonStr: JSON.stringify(chartData, null, 2),
+      filename: "chart_data.json",
+    });
+
     return;
   }
-
+};
+async function createNewChart(selectedComponent: InstanceNode, msg: any) {
   let newInstance = selectedComponent.clone();
   newInstance.name = "Generated Chart";
   newInstance.x += 300;
@@ -185,10 +259,8 @@ figma.ui.onmessage = async (msg) => {
   figma.viewport.scrollAndZoomIntoView([newInstance]);
   // ✅ Extract chart data and send to UI for download
   const chartData = extractChartData(columnChart);
-  console.log("📄 JSON Data:", chartData);
-  downloadJSON(chartData);
-  console.log("🚀 after Calling downloadJSON()...");
-};
+  //downloadJSON(chartData);
+}
 
 /**
  * ✅ Extracts the structure of the chart into JSON format.
