@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import "./app.css";
 
 export function App() {
@@ -22,6 +22,49 @@ export function App() {
       "*",
     );
   };
+
+  useEffect(() => {
+    window.onmessage = (event) => {
+      console.log("📩 Received message from Figma Plugin:", event.data);
+
+      if (!event.data.pluginMessage) {
+        console.warn("⚠️ No pluginMessage received!");
+        return;
+      }
+
+      const { type, jsonStr, filename } = event.data.pluginMessage;
+
+      if (type === "downloadJSON") {
+        console.log("📥 JSON file received, triggering download...", {
+          jsonStr,
+          filename,
+        });
+
+        if (!jsonStr) {
+          console.error("❌ JSON data is missing!");
+          return;
+        }
+
+        try {
+          // ✅ Create a Blob in the UI
+          const blob = new Blob([jsonStr], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+
+          // ✅ Trigger JSON file download
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = filename || "chart_data.json";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          console.log("✅ JSON file should now be downloading.");
+        } catch (error) {
+          console.error("❌ Error creating JSON file in UI:", error);
+        }
+      }
+    };
+  }, []);
 
   const handleBarHeightChange = (event: Event) => {
     const target = event.target as HTMLInputElement;

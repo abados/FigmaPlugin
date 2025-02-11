@@ -87,9 +87,9 @@ figma.ui.onmessage = async (msg) => {
   const numStackedBars = 3;
   const stackedHeights = [
     [10, 30, 40],
-    [0, 25, 35],
+    [0, 25, 80],
     [15, 0, 50],
-    [30, 30, 20],
+    [30, 30, 100],
     [25, 35, 20],
   ];
   const numBars = msg.numBars || 5;
@@ -183,4 +183,73 @@ figma.ui.onmessage = async (msg) => {
 
   figma.currentPage.selection = [newInstance];
   figma.viewport.scrollAndZoomIntoView([newInstance]);
+  // ✅ Extract chart data and send to UI for download
+  const chartData = extractChartData(columnChart);
+  console.log("📄 JSON Data:", chartData);
+  downloadJSON(chartData);
+  console.log("🚀 after Calling downloadJSON()...");
 };
+
+/**
+ * ✅ Extracts the structure of the chart into JSON format.
+ */
+function extractChartData(columnChart: FrameNode) {
+  let chartData: { name: string; bars: any[] } = {
+    name: columnChart.name,
+    bars: [],
+  };
+
+  columnChart.children.forEach((barElement) => {
+    if (barElement.type !== "FRAME") return;
+
+    let barData: { name: string; stackedBars: any[]; label: string } = {
+      name: barElement.name,
+      stackedBars: [],
+      label: "",
+    };
+
+    let barFrame = barElement.findOne(
+      (node) =>
+        node.type === "FRAME" && node.name.trim().toLowerCase() === "bar frame",
+    ) as FrameNode | null;
+
+    if (barFrame) {
+      barFrame.children.forEach((stackedBar) => {
+        if (stackedBar.type === "RECTANGLE") {
+          barData.stackedBars.push({
+            name: stackedBar.name,
+            height: stackedBar.height,
+            width: stackedBar.width,
+            color: stackedBar.fills[0].color || null,
+          });
+        }
+      });
+    }
+
+    chartData.bars.push(barData);
+  });
+
+  return chartData;
+}
+
+/**
+ * ✅ Downloads JSON file from extracted data.
+ */
+function downloadJSON(data: any, filename = "chart_data.json") {
+  console.log("🔍 Inside downloadJSON() function...");
+
+  const jsonStr = JSON.stringify(data, null, 2);
+  console.log("📄 JSON string to send to UI:", jsonStr);
+
+  try {
+    figma.ui.postMessage({
+      type: "downloadJSON",
+      jsonStr: jsonStr, // Send raw JSON text
+      filename: filename,
+    });
+
+    console.log("✅ JSON message sent to UI!");
+  } catch (error) {
+    console.error("❌ Error in downloadJSON function:", error);
+  }
+}
