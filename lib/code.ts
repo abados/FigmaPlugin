@@ -1,3 +1,6 @@
+import { createNewChart } from "../lib/createChart";
+import { isCreatingChart } from "../lib/state";
+
 figma.showUI(__html__, { width: 400, height: 300 });
 
 figma.on("run", () => {
@@ -13,7 +16,6 @@ figma.on("selectionchange", () => {
   console.log("🔄 Selection changed, checking selection...");
   checkSelectionAndUpdateUI();
 });
-let isCreatingChart = false;
 
 function checkSelectionAndUpdateUI() {
   console.log(
@@ -114,247 +116,25 @@ figma.ui.onmessage = async (msg) => {
   }
 };
 
-const DEFAULT_STACKED_HEIGHTS = [
-  [10, 30, 40],
-  [0, 25, 80],
-  [15, 0, 50],
-  [30, 30, 100],
-  [25, 35, 20],
-];
-
-const DEFAULT_COLORS = [
-  { r: 0.1, g: 0.6, b: 0.9 }, // Blue
-  { r: 0.8, g: 0.5, b: 0.4 }, // Brown
-  { r: 0.3, g: 0.7, b: 0.2 }, // Green
-];
-
-async function createNewChart(
-  selectedComponent: InstanceNode | FrameNode,
-  msg: any,
-  isModifyMode: boolean,
-) {
-  isCreatingChart = true;
-  figma.currentPage.selection = [selectedComponent];
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  let newInstance: FrameNode;
-
-  if (isModifyMode) {
-    newInstance = selectedComponent as FrameNode;
-  } else {
-    newInstance = selectedComponent.clone();
-    newInstance.name = "Generated Chart";
-    newInstance.x += 300;
-    newInstance.y += 100;
-    figma.currentPage.appendChild(newInstance);
-    newInstance = newInstance.detachInstance();
-  }
-
-  let columnChart = newInstance.findChild(
-    (node) =>
-      node.type === "FRAME" &&
-      node.name.trim().toLowerCase() === "column chart",
-  );
-  console.log("+++++++++++columnChart", columnChart);
-  if (!columnChart) {
-    figma.notify("❌ 'Column Chart' not found!");
-    isCreatingChart = false; // ✅ Allow selection updates
-    // ✅ Re-enable selection change
-    return;
-  }
-
-  columnChart.layoutMode = "HORIZONTAL";
-  columnChart.primaryAxisSizingMode = "FIXED";
-  columnChart.counterAxisSizingMode = "FIXED";
-
-  console.log("🔍 Column Chart :", columnChart);
-
-  let templateBarElement = columnChart.findOne(
-    (node) =>
-      (node.type === "INSTANCE" &&
-        node.name.trim().toLowerCase() === "bar element simple") ||
-      node.name.trim().toLowerCase() === "bar element",
-  );
-  console.log("+++++++++++templateBarElement", templateBarElement);
-  if (!templateBarElement) {
-    figma.notify("❌ 'Bar Element Simple' not found!");
-    return;
-  }
-
-  templateBarElement = templateBarElement.detachInstance();
-  console.log("✅ Detached 'Bar Element' to use as a clean template");
-
-  let templateBarFrame = templateBarElement.findOne(
-    (node) =>
-      node.type === "FRAME" && node.name.trim().toLowerCase() === "bar frame",
-  );
-  console.log("+++++++++++templateBarFrame", templateBarFrame);
-  if (!templateBarFrame) {
-    figma.notify("❌ 'Bar Frame' not found in template!");
-    return;
-  }
-
-  let templateBarRect = templateBarFrame.findOne(
-    (node) => node.type === "RECTANGLE",
-  ) as RectangleNode | null;
-
-  console.log("+++++++++++templateBarRect", templateBarRect);
-  if (!templateBarRect) {
-    figma.notify("❌ No base rectangle found in template!");
-    return;
-  }
-
-  // ✅ Clone "Bar 0" first before removing it
-  let bar0Clone = templateBarRect.clone();
-
-  // ✅ Remove "Bar 0" from the templateBarFrame after cloning
-  templateBarFrame
-    .findAll((node) => node.type === "RECTANGLE" && node.name === "Bar 0")
-    .forEach((bar) => {
-      console.log(`🗑 Removing Bar 0 from template: ${bar.name}`);
-      bar.remove();
-    });
-  console.log("+++++++++++templateBarFrame", templateBarFrame);
-
-  const maxFromDefaults = Math.max(
-    ...DEFAULT_STACKED_HEIGHTS.map((arr) => arr.length),
-  );
-  const maxFromJson = msg.chartData
-    ? Math.max(...msg.chartData.bars.map((b: any) => b.stackedBars.length), 0)
-    : 0;
-
-  const numStackedBars = isModifyMode ? maxFromJson : maxFromDefaults;
-
-  const defaultNumBars = msg.numBars;
-  const jsonNumBars = msg.chartData ? msg.chartData.bars.length : 0;
-  const numBars = isModifyMode ? jsonNumBars : defaultNumBars;
-
-  for (let i = 0; i < numBars; i++) {
-    let currentBarElement;
-    let barFrame;
-
-    if (i === 0 && !isModifyMode) {
-      currentBarElement = templateBarElement;
-      console.log("currentBarElement", currentBarElement);
-      console.log("+++++++++++++++++", i);
-    } else {
-      currentBarElement = templateBarElement.clone();
-      console.log("currentBarElement", currentBarElement);
-      console.log("+++++++++++++++++", i);
-    }
-
-    columnChart.appendChild(currentBarElement);
-    currentBarElement.name = `Bar Element ${i + 1}`;
-    console.log(`✅ Appended cloned bar to columnChart (index: ${i})`);
-
-    currentBarElement.layoutAlign = "STRETCH";
-    currentBarElement.layoutGrow = 1;
-
-    barFrame = currentBarElement.findOne(
-      (node) =>
-        node.type === "FRAME" && node.name.trim().toLowerCase() === "bar frame",
-    );
-
-    if (!barFrame) {
-      console.warn(`⚠️ No 'Bar Frame' found in '${currentBarElement.name}'`);
-      continue;
-    }
-    console.log("++++++++barFrame.height", barFrame.height);
-    let yOffset = barFrame.height; // ✅ Fix: Start from the bottom of the frame
-    // ✅ Remove "Bar 0" inside each cloned `barFrame`
-    barFrame
-      .findAll((node) => node.type === "RECTANGLE" && node.name === "Bar 0")
-      .forEach((bar) => {
-        console.log(`🗑 Removing Bar 0: ${bar.name}`);
-        bar.remove();
-      });
-
-    // ✅ Clear existing bars before adding new ones
-    barFrame
-      .findAll((node) => node.type === "RECTANGLE" && node.name !== "Bar 0")
-      .forEach((bar) => bar.remove());
-    const barSpacing = 2;
-    for (let j = 0; j < numStackedBars; j++) {
-      let barHeight;
-      let barColor;
-      console.log("++++++++isModifyMode", isModifyMode);
-      if (isModifyMode && msg.chartData) {
-        const stackedBarData =
-          msg.chartData.bars[i].stackedBars[j] || undefined;
-        if (!stackedBarData) continue;
-        console.log("++++++++stackedBarData.height", stackedBarData.height);
-        barHeight = stackedBarData.height;
-        barColor = stackedBarData.color;
-      } else {
-        console.log(
-          "barHeight",
-          DEFAULT_STACKED_HEIGHTS[i % DEFAULT_STACKED_HEIGHTS.length][j],
-        );
-        barHeight =
-          DEFAULT_STACKED_HEIGHTS[i % DEFAULT_STACKED_HEIGHTS.length][j] || 0;
-        barColor = DEFAULT_COLORS[j % DEFAULT_COLORS.length];
-      }
-
-      if (barHeight === 0) continue;
-
-      let stackedBar = bar0Clone.clone(); // ✅ Use clone of original Bar 0
-      stackedBar.name = `Stacked Bar ${j + 1}`;
-      stackedBar.constraints = { horizontal: "STRETCH", vertical: "SCALE" };
-      stackedBar.visible = true;
-      barFrame.appendChild(stackedBar);
-      console.log("✅ Added stackedBar:", stackedBar.name);
-      console.log(barHeight);
-      stackedBar.resize(barFrame.width, barHeight);
-      stackedBar.y = yOffset - barHeight; // ✅ Fix: Position bars correctly
-      stackedBar.fills = [{ type: "SOLID", color: barColor }];
-      yOffset -= barHeight + barSpacing; // ✅ Move the offset up for the next stacked bar
-    }
-
-    let newLabelFrame = currentBarElement.findOne(
-      (node) => node.name.trim().toLowerCase() === "label frame",
-    );
-
-    let newLabelText = newLabelFrame.findOne(
-      (node) =>
-        (node.type === "TEXT" && node.name.trim().toLowerCase() === "label") ||
-        node.name.trim().toLowerCase() === "bucket 1" ||
-        node.name.trim().toLowerCase() === "label 1",
-    );
-
-    if (newLabelText) {
-      console.log(`Label ${i + 1}`);
-      await figma.loadFontAsync(newLabelText.fontName as FontName);
-      newLabelText.characters = isModifyMode
-        ? msg.chartData.bars[i].label || `Label ${i + 1}`
-        : `Label ${i + 1}`;
-      console.log(`✅ Updated Label Text for Bar ${i + 1}`);
-    }
-  }
-  isCreatingChart = false;
-  console.log("🔍 Final columnChart Children:", columnChart.children);
-  figma.notify(`✅ Adjusted bar heights & created ${numBars} bar elements!`);
-  figma.currentPage.selection = [newInstance];
-  figma.viewport.scrollAndZoomIntoView([newInstance]);
-
-  figma.ui.postMessage({
-    type: "chart-created",
-    chartData: extractChartData(newInstance),
-  });
-  // ✅ Extract chart data and send to UI for download
-  //const chartData = extractChartData(columnChart);
-  //downloadJSON(chartData);
-}
-
 /**
  * ✅ Extracts the structure of the chart into JSON format.
  */
-function extractChartData(columnChart: FrameNode) {
+function extractChartData(generatedChart: FrameNode) {
   let chartData: { name: string; bars: any[] } = {
-    name: columnChart.name,
+    name: generatedChart.name,
     bars: [],
   };
 
+  let columnChart = generatedChart.findOne(
+    (node) =>
+      node.type === "FRAME" &&
+      node.name.trim().toLowerCase() === "column chart",
+  ) as FrameNode | null;
+
   columnChart.children.forEach((barElement) => {
     if (barElement.type !== "FRAME") return;
+
+    console.log("📊 Found Bar Element:", barElement.name);
 
     let barData: { name: string; stackedBars: any[]; label: string } = {
       name: barElement.name,
@@ -367,21 +147,32 @@ function extractChartData(columnChart: FrameNode) {
         node.type === "FRAME" && node.name.trim().toLowerCase() === "bar frame",
     ) as FrameNode | null;
 
-    if (barFrame) {
-      barFrame.children.forEach((stackedBar) => {
-        if (stackedBar.type === "RECTANGLE") {
-          barData.stackedBars.push({
-            name: stackedBar.name,
-            height: stackedBar.height,
-            width: stackedBar.width,
-            color: stackedBar.fills[0].color || null,
-          });
-        }
-      });
+    if (!barFrame) {
+      console.warn(`⚠️ No 'Bar Frame' found in '${barElement.name}'`);
+      return;
     }
 
+    console.log("📊 Extracting bars from:", barFrame.name);
+
+    barFrame.children.forEach((stackedBar) => {
+      if (stackedBar.type === "RECTANGLE") {
+        barData.stackedBars.push({
+          name: stackedBar.name,
+          height: stackedBar.height,
+          width: stackedBar.width,
+          color: stackedBar.fills[0].color || null,
+        });
+      }
+    });
+
+    console.log("✅ Extracted stacked bars:", barData.stackedBars);
     chartData.bars.push(barData);
   });
+
+  console.log(
+    "✅ Final extracted chart data:",
+    JSON.stringify(chartData, null, 2),
+  );
 
   return chartData;
 }
