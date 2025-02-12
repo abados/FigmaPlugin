@@ -25,6 +25,7 @@ function checkSelectionAndUpdateUI() {
     console.log("🚨 Chart is being created, skipping UI update.");
     return;
   }
+
   const selectedNodes = figma.currentPage.selection;
   if (selectedNodes.length === 0) {
     console.log("🟡 No selection detected. Switching to default UI.");

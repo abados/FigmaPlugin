@@ -10,19 +10,15 @@ export function App() {
   useEffect(() => {
     window.onmessage = (event) => {
       console.log("📩 Received message from Figma Plugin:", event.data);
-
+      console.log("event.data", event.data);
       if (!event.data.pluginMessage) {
         console.warn("⚠️ No pluginMessage received!");
         return;
       }
 
       const { type, jsonStr, filename, chartData } = event.data.pluginMessage;
-      if (mode === "create" && type !== "showModifyUI") {
-        console.warn("🚨 Ignoring UI update while chart is creating...");
-        return;
-      }
 
-      if (type === "showDefaultUI" && mode !== "create") {
+      if (type === "showDefaultUI") {
         console.log("🎨 Switching to 'Create Mode' (only if not creating)");
         setMode("create");
       }
