@@ -9,158 +9,54 @@ export function App() {
 
   useEffect(() => {
     window.onmessage = (event) => {
-      console.log("📩 Received message from Figma Plugin:", event.data);
-      console.log("event.data", event.data);
-      if (!event.data.pluginMessage) {
-        console.warn("⚠️ No pluginMessage received!");
-        return;
-      }
-
+      if (!event.data.pluginMessage) return;
       const { type, jsonStr, filename, chartData } = event.data.pluginMessage;
 
-      if (type === "showDefaultUI") {
-        console.log("🎨 Switching to 'Create Mode' (only if not creating)");
-        setMode("create");
-      }
-
+      if (type === "showDefaultUI") setMode("create");
       if (type === "showModifyUI" && chartData) {
-        console.log("🎨 Switching to 'Modify Mode' with data:", chartData);
         setMode("modify");
         setChartData(chartData);
       }
-
-      if (type === "downloadJSON") {
-        console.log("📥 JSON file received, triggering download...", {
-          jsonStr,
-          filename,
-        });
-
-        if (!jsonStr) {
-          console.error("❌ JSON data is missing!");
-          return;
-        }
-
-        try {
-          // ✅ Restored missing download logic
-          const blob = new Blob([jsonStr], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = filename || "chart_data.json";
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          console.log("✅ JSON file should now be downloading.");
-        } catch (error) {
-          console.error("❌ Error creating JSON file in UI:", error);
-        }
+      if (type === "downloadJSON" && jsonStr) {
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename || "chart_data.json";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
     };
   }, []);
-  const handleCreateInstance = () => {
-    console.log("📤 Sending create-instance message with values:", {
-      barHeight,
-      numBars,
-    });
 
-    parent.postMessage(
-      {
-        pluginMessage: {
-          type: "create-instance",
-          newHeight: barHeight,
-          numBars: numBars,
-        },
-      },
-      "*",
-    );
-  };
-
-  const handleModifyInstance = () => {
-    console.log(
-      "✏️ Sending modify-instance message with updated chart data:",
-      chartData,
-    );
-
-    parent.postMessage(
-      {
-        pluginMessage: {
-          type: "modify-instance",
-          updatedChartData: chartData,
-        },
-      },
-      "*",
-    );
-  };
-
-  const handleDownloadInstance = () => {
-    console.log("📥 Sending request to download chart data...");
-
-    parent.postMessage(
-      {
-        pluginMessage: {
-          type: "request-download-json",
-        },
-      },
-      "*",
-    );
-  };
-
-  const handleUploadJSON = async (event: Event) => {
-    const target = event.target as HTMLInputElement;
-    if (!target.files || target.files.length === 0) return;
-
-    const file = target.files[0];
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      try {
-        const jsonData = JSON.parse(e.target?.result as string);
-        console.log("📂 Imported JSON data:", jsonData);
-
-        // Send imported data to Figma
-        parent.postMessage(
-          {
-            pluginMessage: {
-              type: "import-json",
-              chartData: jsonData,
-            },
-          },
-          "*",
-        );
-
-        // Update UI state
-        setChartData(jsonData);
-      } catch (error) {
-        console.error("❌ Error parsing JSON:", error);
-      }
-    };
-
-    reader.readAsText(file);
-  };
-
-  const handleChartDataChange = (index: number, key: string, event: Event) => {
+  const handleChartDataChange = (
+    barIndex: number,
+    stackIndex: number,
+    key: string,
+    event: Event,
+  ) => {
     if (!chartData) return;
-
     const target = event.target as HTMLInputElement;
     const value = parseInt(target.value) || 0;
 
-    setChartData((prevData: typeof chartData) => {
+    setChartData((prevData: any) => {
       if (!prevData) return prevData;
-
       return {
         ...prevData,
-        bars: prevData.bars.map((bar: any, i: number) => {
-          if (i === index) {
-            return {
-              ...bar,
-              stackedBars: bar.stackedBars.map((stackedBar: any, j: number) => {
-                return j === 0 ? { ...stackedBar, [key]: value } : stackedBar;
-              }),
-            };
-          }
-          return bar;
-        }),
+        bars: prevData.bars.map((bar: any, i: number) =>
+          i === barIndex
+            ? {
+                ...bar,
+                stackedBars: bar.stackedBars.map(
+                  (stackedBar: any, j: number) =>
+                    j === stackIndex
+                      ? { ...stackedBar, [key]: value }
+                      : stackedBar,
+                ),
+              }
+            : bar,
+        ),
       };
     });
   };
@@ -170,7 +66,6 @@ export function App() {
       {mode === "create" ? (
         <>
           <h2>Create Chart Instance</h2>
-
           <label>
             Bar Height:
             <input
@@ -183,7 +78,6 @@ export function App() {
               }
             />
           </label>
-
           <label>
             Number of Bars:
             <input
@@ -194,40 +88,139 @@ export function App() {
               }
             />
           </label>
-
-          <button onClick={handleCreateInstance}>Create Chart Instance</button>
+          <button
+            onClick={() =>
+              parent.postMessage(
+                {
+                  pluginMessage: {
+                    type: "create-instance",
+                    newHeight: barHeight,
+                    numBars,
+                  },
+                },
+                "*",
+              )
+            }
+          >
+            Create Chart Instance
+          </button>
         </>
       ) : (
         <>
           <h2>Modify Chart Instance</h2>
-
-          {chartData?.bars?.map((bar: any, index: number) => (
-            <div key={index} className="bar-settings">
-              <h3>{bar.name}</h3>
-              <label>
-                Height:
-                <input
-                  type="number"
-                  value={bar.stackedBars[0].height}
-                  onChange={(e) => handleChartDataChange(index, "height", e)}
-                />
-              </label>
-              <label>
-                Width:
-                <input
-                  type="number"
-                  value={bar.stackedBars[0].width}
-                  onChange={(e) => handleChartDataChange(index, "width", e)}
-                />
-              </label>
-            </div>
-          ))}
-
-          <button onClick={handleModifyInstance}>Update Chart</button>
-          <button onClick={handleDownloadInstance}>
+          <table>
+            <thead>
+              <tr>
+                <th>X</th>
+                <th>Val 1</th>
+                <th>Val 2</th>
+                <th>Val 3</th>
+              </tr>
+            </thead>
+            <tbody>
+              {chartData?.bars?.map((bar: any, barIndex: number) =>
+                bar.stackedBars.map((stackedBar: any, stackIndex: number) => (
+                  <tr key={`${barIndex}-${stackIndex}`}>
+                    <td>{stackIndex + 1}</td>
+                    <td>
+                      <input
+                        type="number"
+                        value={stackedBar.height}
+                        onChange={(e) =>
+                          handleChartDataChange(
+                            barIndex,
+                            stackIndex,
+                            "value1",
+                            e,
+                          )
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        value={stackedBar.height}
+                        onChange={(e) =>
+                          handleChartDataChange(
+                            barIndex,
+                            stackIndex,
+                            "value2",
+                            e,
+                          )
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        value={stackedBar.height}
+                        onChange={(e) =>
+                          handleChartDataChange(
+                            barIndex,
+                            stackIndex,
+                            "value3",
+                            e,
+                          )
+                        }
+                      />
+                    </td>
+                  </tr>
+                )),
+              )}
+            </tbody>
+          </table>
+          <button
+            onClick={() =>
+              parent.postMessage(
+                {
+                  pluginMessage: {
+                    type: "modify-instance",
+                    updatedChartData: chartData,
+                  },
+                },
+                "*",
+              )
+            }
+          >
+            Update Chart
+          </button>
+          <button
+            onClick={() =>
+              parent.postMessage(
+                { pluginMessage: { type: "request-download-json" } },
+                "*",
+              )
+            }
+          >
             Download Chart Instance
           </button>
-          <input type="file" accept=".json" onChange={handleUploadJSON} />
+          <input
+            type="file"
+            accept=".json"
+            onChange={(event) => {
+              const target = event.target as HTMLInputElement;
+              if (!target.files || target.files.length === 0) return;
+              const file = target.files[0];
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                try {
+                  const jsonData = JSON.parse(e.target?.result as string);
+                  setChartData(jsonData);
+                  parent.postMessage(
+                    {
+                      pluginMessage: {
+                        type: "import-json",
+                        chartData: jsonData,
+                      },
+                    },
+                    "*",
+                  );
+                } catch (error) {
+                }
+              };
+              reader.readAsText(file);
+            }}
+          />
         </>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { DEFAULT_STACKED_HEIGHTS, DEFAULT_COLORS } from "./constant";
 import { setIsCreatingChart } from "./state";
+import { extractChartData } from "./files";
 
 export async function createNewChart(
   selectedComponent: InstanceNode | FrameNode,
@@ -11,8 +12,6 @@ export async function createNewChart(
   let newInstance: FrameNode;
 
   if (isModifyMode) {
-    console.log("+++++++++++isModifyMode", isModifyMode);
-    console.log("+++++++++++isModifyMode", isModifyMode);
     newInstance = selectedComponent as FrameNode;
   } else {
     newInstance = selectedComponent.clone();
@@ -28,7 +27,6 @@ export async function createNewChart(
       node.type === "FRAME" &&
       node.name.trim().toLowerCase() === "column chart",
   );
-  console.log("+++++++++++columnChart", columnChart);
   if (!columnChart) {
     figma.notify("❌ 'Column Chart' not found!");
     setIsCreatingChart(false); // ✅ Allow selection updates
@@ -40,8 +38,6 @@ export async function createNewChart(
   columnChart.primaryAxisSizingMode = "FIXED";
   columnChart.counterAxisSizingMode = "FIXED";
 
-  console.log("🔍 Column Chart :", columnChart);
-
   let templateBarElement = columnChart.findOne(
     (node) =>
       (node.type === "INSTANCE" &&
@@ -49,8 +45,7 @@ export async function createNewChart(
       node.name.trim().toLowerCase() === "bar element" ||
       node.name.trim().toLowerCase() === "bar element 1",
   );
-  console.log("+++++++++++templateBarElement", templateBarElement);
-
+  templateBarElement.name = "Bar Element 0";
   if (!templateBarElement) {
     figma.notify("❌ 'Bar Element Simple' not found!");
     return;
@@ -58,13 +53,11 @@ export async function createNewChart(
   try {
     if (templateBarElement.type === "INSTANCE")
       templateBarElement = templateBarElement.detachInstance();
-    console.log("✅ Detached 'Bar Element' to use as a clean template");
 
     let templateBarFrame = templateBarElement.findOne(
       (node) =>
         node.type === "FRAME" && node.name.trim().toLowerCase() === "bar frame",
     );
-    console.log("+++++++++++templateBarFrame", templateBarFrame);
     if (!templateBarFrame) {
       figma.notify("❌ 'Bar Frame' not found in template!");
       return;
@@ -74,7 +67,6 @@ export async function createNewChart(
       (node) => node.type === "RECTANGLE",
     ) as RectangleNode | null;
 
-    console.log("+++++++++++templateBarRect", templateBarRect);
     if (!templateBarRect) {
       figma.notify("❌ No base rectangle found in template!");
       return;
@@ -84,12 +76,20 @@ export async function createNewChart(
 
     // ✅ Remove "Bar 0" from the templateBarFrame after cloning
     templateBarFrame
-      .findAll((node) => node.type === "RECTANGLE" && node.name === "Bar 0")
+      .findAll((node) => node.type === "RECTANGLE")
       .forEach((bar) => {
-        console.log(`🗑 Removing Bar 0 from template: ${bar.name}`);
         bar.remove();
       });
-    console.log("+++++++++++templateBarFrame", templateBarFrame);
+    columnChart
+      .findAll(
+        (node) =>
+          node.type === "FRAME" &&
+          node.name.toLowerCase().includes("bar element") &&
+          node.id !== templateBarElement.id, // ✅ Keep the template
+      )
+      .forEach((barElement) => {
+        barElement.remove();
+      });
 
     const maxFromDefaults = Math.max(
       ...DEFAULT_STACKED_HEIGHTS.map((arr) => arr.length),
@@ -103,25 +103,19 @@ export async function createNewChart(
     const defaultNumBars = msg.numBars;
     const jsonNumBars = msg.chartData ? msg.chartData.bars.length : 0;
     const numBars = isModifyMode ? jsonNumBars : defaultNumBars;
-
+    let autoScale: boolean = true;
+    let maxSum = 0;
     for (let i = 0; i < numBars; i++) {
       let currentBarElement;
       let barFrame;
 
       if (i === 0 && !isModifyMode) {
         currentBarElement = templateBarElement;
-        console.log("currentBarElement", currentBarElement);
-        console.log("+++++++++++++++++", i);
       } else {
         currentBarElement = templateBarElement.clone();
-        console.log("currentBarElement", currentBarElement);
-        console.log("+++++++++++++++++", i);
       }
-
       columnChart.appendChild(currentBarElement);
       currentBarElement.name = `Bar Element ${i + 1}`;
-      console.log(`✅ Appended cloned bar to columnChart (index: ${i})`);
-
       currentBarElement.layoutAlign = "STRETCH";
       currentBarElement.layoutGrow = 1;
 
@@ -135,40 +129,56 @@ export async function createNewChart(
         console.warn(`⚠️ No 'Bar Frame' found in '${currentBarElement.name}'`);
         continue;
       }
-      console.log("++++++++barFrame.height", barFrame.height);
       let yOffset = barFrame.height; // ✅ Fix: Start from the bottom of the frame
       // ✅ Remove "Bar 0" inside each cloned `barFrame`
       barFrame
-        .findAll((node) => node.type === "RECTANGLE" && node.name === "Bar 0")
+        .findAll((node) => node.type === "RECTANGLE")
         .forEach((bar) => {
-          console.log(`🗑 Removing Bar 0: ${bar.name}`);
           bar.remove();
         });
 
-      // ✅ Clear existing bars before adding new ones
-      barFrame
-        .findAll((node) => node.type === "RECTANGLE" && node.name !== "Bar 0")
-        .forEach((bar) => bar.remove());
-      const barSpacing = 2;
+      const { rowResults, maxSum } = findMaxAndSum(
+        DEFAULT_STACKED_HEIGHTS,
+        numStackedBars,
+      );
+
       for (let j = 0; j < numStackedBars; j++) {
         let barHeight;
+        let constantBarHeight;
         let barColor;
-        console.log("++++++++isModifyMode", isModifyMode);
+        console.log("🔍 Creating Chart - maxSum:", maxSum);
         if (isModifyMode && msg.chartData) {
+          console.log("🛠 Modifying Chart - maxSum:", maxSum);
           const stackedBarData =
             msg.chartData.bars[i].stackedBars[j] || undefined;
           if (!stackedBarData) continue;
-          console.log("++++++++stackedBarData.height", stackedBarData.height);
           barHeight = stackedBarData.height;
+          console.log(
+            "!!!!!@@@@",
+            i,
+            j,
+            barFrame.height,
+            stackedBarData.height,
+            maxSum,
+            barHeight,
+          );
+          //barHeight = stackedBarData.height;
           barColor = stackedBarData.color;
         } else {
-          console.log(
-            "barHeight",
-            DEFAULT_STACKED_HEIGHTS[i % DEFAULT_STACKED_HEIGHTS.length][j],
-          );
-          barHeight =
+          constantBarHeight =
             DEFAULT_STACKED_HEIGHTS[i % DEFAULT_STACKED_HEIGHTS.length][j] || 0;
+          barHeight =
+            (barFrame.height * (constantBarHeight - 0)) / (maxSum - 0);
           barColor = DEFAULT_COLORS[j % DEFAULT_COLORS.length];
+          console.log(
+            "!!!!!@@@@",
+            i,
+            j,
+            barFrame.height,
+            constantBarHeight,
+            maxSum,
+            barHeight,
+          );
         }
 
         if (barHeight === 0) continue;
@@ -178,12 +188,10 @@ export async function createNewChart(
         stackedBar.constraints = { horizontal: "STRETCH", vertical: "SCALE" };
         stackedBar.visible = true;
         barFrame.appendChild(stackedBar);
-        console.log("✅ Added stackedBar:", stackedBar.name);
-        console.log(barHeight);
         stackedBar.resize(barFrame.width, barHeight);
         stackedBar.y = yOffset - barHeight; // ✅ Fix: Position bars correctly
         stackedBar.fills = [{ type: "SOLID", color: barColor }];
-        yOffset -= barHeight + barSpacing; // ✅ Move the offset up for the next stacked bar
+        yOffset -= barHeight; // ✅ Move the offset up for the next stacked bar
       }
 
       let newLabelFrame = currentBarElement.findOne(
@@ -199,16 +207,22 @@ export async function createNewChart(
       );
 
       if (newLabelText) {
-        console.log(`Label ${i + 1}`);
         await figma.loadFontAsync(newLabelText.fontName as FontName);
         newLabelText.characters = isModifyMode
           ? msg.chartData.bars[i].label || `Label ${i + 1}`
           : `Label ${i + 1}`;
-        console.log(`✅ Updated Label Text for Bar ${i + 1}`);
       }
     }
+
+    let templateToDelete = columnChart.findOne(
+      (node) =>
+        node.type === "FRAME" && node.name.toLowerCase() === "bar element 0",
+    );
+
+    if (templateToDelete) {
+      templateToDelete.remove();
+    }
     setIsCreatingChart(false);
-    console.log("🔍 Final columnChart Children:", columnChart.children);
     figma.notify(`✅ Adjusted bar heights & created ${numBars} bar elements!`);
     figma.currentPage.selection = [newInstance];
     figma.viewport.scrollAndZoomIntoView([newInstance]);
@@ -220,8 +234,26 @@ export async function createNewChart(
     // ✅ Extract chart data and send to UI for download
     //const chartData = extractChartData(columnChart);
     //downloadJSON(chartData);
-  } catch (error) {
-    console.error("🚨 Error occurred in createNewChart:", error);
-    console.error("🚨 Error occurred in createNewChart:", error.stack);
-  }
+  } catch (error) {}
+}
+
+function findMaxAndSum(allHeights: number[][], numStackedBars: number) {
+  let maxSum = 0; // To track the maximum sum across all rows
+  let rowResults = allHeights.map((heights) => {
+    let max = 0;
+    let sum = 0;
+
+    for (let i = 0; i < numStackedBars; i++) {
+      if (heights[i] !== undefined) {
+        max = Math.max(max, heights[i]);
+        sum += heights[i];
+      }
+    }
+
+    maxSum = Math.max(maxSum, sum); // Track the highest row sum
+
+    return { max, sum };
+  });
+
+  return { rowResults, maxSum };
 }

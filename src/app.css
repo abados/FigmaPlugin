@@ -36,3 +36,26 @@ button {
 button:hover {
   background: #264ecb;
 }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: center;
+  background-color: white; /* Ensure background is visible */
+  color: navy;
+}
+
+input {
+  width: 50px;
+  text-align: center;
+  background-color: white;
+  border: 1px solid #ccc;
+  padding: 4px;
+  color: black;
+}

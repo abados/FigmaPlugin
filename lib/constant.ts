@@ -11,3 +11,5 @@ export const DEFAULT_COLORS = [
   { r: 0.8, g: 0.5, b: 0.4 }, // Brown
   { r: 0.3, g: 0.7, b: 0.2 }, // Green
 ];
+
+//export const barSpacing = 2;
