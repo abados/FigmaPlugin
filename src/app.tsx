@@ -118,55 +118,42 @@ export function App() {
               </tr>
             </thead>
             <tbody>
-              {chartData?.bars?.map((bar: any, barIndex: number) =>
-                bar.stackedBars.map((stackedBar: any, stackIndex: number) => (
-                  <tr key={`${barIndex}-${stackIndex}`}>
-                    <td>{stackIndex + 1}</td>
-                    <td>
-                      <input
-                        type="number"
-                        value={stackedBar.height}
-                        onChange={(e) =>
-                          handleChartDataChange(
-                            barIndex,
-                            stackIndex,
-                            "value1",
-                            e,
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        value={stackedBar.height}
-                        onChange={(e) =>
-                          handleChartDataChange(
-                            barIndex,
-                            stackIndex,
-                            "value2",
-                            e,
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        value={stackedBar.height}
-                        onChange={(e) =>
-                          handleChartDataChange(
-                            barIndex,
-                            stackIndex,
-                            "value3",
-                            e,
-                          )
-                        }
-                      />
-                    </td>
+              {chartData?.bars?.map((bar: any, barIndex: number) => {
+                // Find the maximum number of stacked bars
+                const maxStackedBars = Math.max(
+                  ...chartData.bars.map((b: any) => b.stackedBars.length),
+                  0,
+                );
+
+                return (
+                  <tr key={barIndex}>
+                    <td>{barIndex + 1}</td>
+                    {[...Array(maxStackedBars)].map((_, stackIndex) => {
+                      // Ensure correct order: If stackedBar exists, use it. Otherwise, insert 0.
+                      const stackedBar = bar.stackedBars[stackIndex] || {
+                        height: 0,
+                      };
+
+                      return (
+                        <td key={stackIndex}>
+                          <input
+                            type="number"
+                            value={stackedBar.height}
+                            onChange={(e) =>
+                              handleChartDataChange(
+                                barIndex,
+                                stackIndex,
+                                "height",
+                                e,
+                              )
+                            }
+                          />
+                        </td>
+                      );
+                    })}
                   </tr>
-                )),
-              )}
+                );
+              })}
             </tbody>
           </table>
           <button
@@ -215,8 +202,7 @@ export function App() {
                     },
                     "*",
                   );
-                } catch (error) {
-                }
+                } catch (error) {}
               };
               reader.readAsText(file);
             }}

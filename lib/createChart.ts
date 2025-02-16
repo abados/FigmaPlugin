@@ -146,22 +146,11 @@ export async function createNewChart(
         let barHeight;
         let constantBarHeight;
         let barColor;
-        console.log("🔍 Creating Chart - maxSum:", maxSum);
         if (isModifyMode && msg.chartData) {
-          console.log("🛠 Modifying Chart - maxSum:", maxSum);
           const stackedBarData =
             msg.chartData.bars[i].stackedBars[j] || undefined;
           if (!stackedBarData) continue;
           barHeight = stackedBarData.height;
-          console.log(
-            "!!!!!@@@@",
-            i,
-            j,
-            barFrame.height,
-            stackedBarData.height,
-            maxSum,
-            barHeight,
-          );
           //barHeight = stackedBarData.height;
           barColor = stackedBarData.color;
         } else {
@@ -170,15 +159,6 @@ export async function createNewChart(
           barHeight =
             (barFrame.height * (constantBarHeight - 0)) / (maxSum - 0);
           barColor = DEFAULT_COLORS[j % DEFAULT_COLORS.length];
-          console.log(
-            "!!!!!@@@@",
-            i,
-            j,
-            barFrame.height,
-            constantBarHeight,
-            maxSum,
-            barHeight,
-          );
         }
 
         if (barHeight === 0) continue;

@@ -10,6 +10,28 @@ export function extractChartData(generatedChart: FrameNode) {
       node.name.trim().toLowerCase() === "column chart",
   ) as FrameNode | null;
 
+  // Determine all possible stacked bar names (Stacked Bar 1, 2, 3, ...)
+  const allStackedBarNames = new Set<string>();
+
+  columnChart.children.forEach((barElement) => {
+    if (barElement.type !== "FRAME") return;
+
+    let barFrame = barElement.findOne(
+      (node) =>
+        node.type === "FRAME" && node.name.trim().toLowerCase() === "bar frame",
+    ) as FrameNode | null;
+
+    if (!barFrame) return;
+
+    barFrame.children.forEach((stackedBar) => {
+      if (stackedBar.type === "RECTANGLE") {
+        allStackedBarNames.add(stackedBar.name); // Collect all unique stacked bar names
+      }
+    });
+  });
+
+  const sortedStackedBarNames = Array.from(allStackedBarNames).sort(); // Ensure order is consistent
+
   columnChart.children.forEach((barElement) => {
     if (barElement.type !== "FRAME") return;
 
@@ -26,16 +48,29 @@ export function extractChartData(generatedChart: FrameNode) {
 
     if (!barFrame) return;
 
+    let extractedStackedBars: any = {};
+
     barFrame.children.forEach((stackedBar) => {
       if (stackedBar.type === "RECTANGLE") {
-        barData.stackedBars.push({
+        extractedStackedBars[stackedBar.name] = {
           name: stackedBar.name,
           height: stackedBar.height,
           width: stackedBar.width,
           color: stackedBar.fills[0].color || null,
-        });
+        };
       }
     });
+
+    // ✅ Ensure correct ordering of stacked bars and fill missing ones with height: 0
+    barData.stackedBars = sortedStackedBarNames.map(
+      (name) =>
+        extractedStackedBars[name] || {
+          name,
+          height: 0,
+          width: 75,
+          color: null,
+        },
+    );
 
     chartData.bars.push(barData);
   });
