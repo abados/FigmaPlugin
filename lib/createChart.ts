@@ -45,6 +45,7 @@ export async function createNewChart(
       node.name.trim().toLowerCase() === "bar element" ||
       node.name.trim().toLowerCase() === "bar element 1",
   );
+
   templateBarElement.name = "Bar Element 0";
   if (!templateBarElement) {
     figma.notify("❌ 'Bar Element Simple' not found!");
@@ -91,24 +92,50 @@ export async function createNewChart(
         barElement.remove();
       });
 
+    // 🔹 **Determine Bar Data Source (Default vs. JSON Import)**
+    let categories: string[];
+    let stackedBars: string[];
+    let rowData: any[];
+
+    if (isModifyMode && msg.chartData) {
+      // ✅ Importing from JSON
+      const { dataSet } = msg.chartData;
+      categories = dataSet.rows.map((row: any) => row[0]); // Bar names (X-axis)
+      stackedBars = dataSet.columns.slice(1).map((col: any) => col.name); // Stacked bar names (Y-axis)
+      rowData = dataSet.rows;
+    } else {
+      // ✅ Creating a new chart from default values
+      categories = Array.from(
+        { length: msg.numBars },
+        (_, i) => `Bar Element ${i + 1}`,
+      );
+      stackedBars = Array.from(
+        { length: DEFAULT_STACKED_HEIGHTS[0].length },
+        (_, i) => `Stacked Bar ${i + 1}`,
+      );
+      rowData = categories.map((_, i) => [
+        categories[i],
+        ...DEFAULT_STACKED_HEIGHTS[i % DEFAULT_STACKED_HEIGHTS.length],
+      ]);
+    }
+
     const maxFromDefaults = Math.max(
       ...DEFAULT_STACKED_HEIGHTS.map((arr) => arr.length),
     );
-    const maxFromJson = msg.chartData
-      ? Math.max(...msg.chartData.bars.map((b: any) => b.stackedBars.length), 0)
+    const maxFromJson = isModifyMode
+      ? Math.max(
+          ...rowData.map((row) =>
+            row.slice(1).reduce((sum, val) => sum + (val || 0), 0),
+          ),
+        )
       : 0;
-
-    const numStackedBars = isModifyMode ? maxFromJson : maxFromDefaults;
-
-    const defaultNumBars = msg.numBars;
-    const jsonNumBars = msg.chartData ? msg.chartData.bars.length : 0;
-    const numBars = isModifyMode ? jsonNumBars : defaultNumBars;
-    let autoScale: boolean = true;
+    const numStackedBars = isModifyMode ? stackedBars.length : maxFromDefaults;
+    const numBars = categories.length;
     let maxSum = 0;
+
     for (let i = 0; i < numBars; i++) {
       let currentBarElement;
       let barFrame;
-
       if (i === 0 && !isModifyMode) {
         currentBarElement = templateBarElement;
       } else {
@@ -126,7 +153,6 @@ export async function createNewChart(
       );
 
       if (!barFrame) {
-        console.warn(`⚠️ No 'Bar Frame' found in '${currentBarElement.name}'`);
         continue;
       }
       let yOffset = barFrame.height; // ✅ Fix: Start from the bottom of the frame
@@ -136,7 +162,6 @@ export async function createNewChart(
         .forEach((bar) => {
           bar.remove();
         });
-
       const { rowResults, maxSum } = findMaxAndSum(
         DEFAULT_STACKED_HEIGHTS,
         numStackedBars,
@@ -147,12 +172,12 @@ export async function createNewChart(
         let constantBarHeight;
         let barColor;
         if (isModifyMode && msg.chartData) {
-          const stackedBarData =
-            msg.chartData.bars[i].stackedBars[j] || undefined;
-          if (!stackedBarData) continue;
-          barHeight = stackedBarData.height;
+          const realBarHeight = rowData[i][j + 1] || 0;
+          if (!realBarHeight) continue;
+          barHeight =
+            maxSum > 0 ? (barFrame.height * realBarHeight) / maxSum : 0;
           //barHeight = stackedBarData.height;
-          barColor = stackedBarData.color;
+          barColor = DEFAULT_COLORS[j % DEFAULT_COLORS.length];
         } else {
           constantBarHeight =
             DEFAULT_STACKED_HEIGHTS[i % DEFAULT_STACKED_HEIGHTS.length][j] || 0;
@@ -183,14 +208,22 @@ export async function createNewChart(
           (node.type === "TEXT" &&
             node.name.trim().toLowerCase() === "label") ||
           node.name.trim().toLowerCase() === "bucket 1" ||
-          node.name.trim().toLowerCase() === "label 1",
+          node.name.trim().toLowerCase() === "label 1" ||
+          node.name.trim().toLowerCase() === "label text",
       );
 
-      if (newLabelText) {
+      let scaleTextNode = newLabelFrame.findOne(
+        (node) =>
+          node.type === "TEXT" &&
+          node.name.trim().toLowerCase() === "scale - do not delete",
+      ) as TextNode | null;
+
+      if (newLabelText && scaleTextNode) {
         await figma.loadFontAsync(newLabelText.fontName as FontName);
         newLabelText.characters = isModifyMode
-          ? msg.chartData.bars[i].label || `Label ${i + 1}`
+          ? rowData[i][0] || `Label ${i + 1}`
           : `Label ${i + 1}`;
+        scaleTextNode.characters = `${maxSum}`;
       }
     }
 
