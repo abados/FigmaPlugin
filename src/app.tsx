@@ -33,7 +33,6 @@ export function App() {
   const handleChartDataChange = (
     barIndex: number,
     stackIndex: number,
-    key: string,
     event: Event,
   ) => {
     if (!chartData) return;
@@ -42,21 +41,23 @@ export function App() {
 
     setChartData((prevData: any) => {
       if (!prevData) return prevData;
+
+      const updatedRows = prevData.dataSet.rows.map((row: any, i: number) =>
+        i === barIndex
+          ? [
+              ...row.slice(0, stackIndex + 1),
+              value,
+              ...row.slice(stackIndex + 2),
+            ]
+          : row,
+      );
+
       return {
         ...prevData,
-        bars: prevData.bars.map((bar: any, i: number) =>
-          i === barIndex
-            ? {
-                ...bar,
-                stackedBars: bar.stackedBars.map(
-                  (stackedBar: any, j: number) =>
-                    j === stackIndex
-                      ? { ...stackedBar, [key]: value }
-                      : stackedBar,
-                ),
-              }
-            : bar,
-        ),
+        dataSet: {
+          ...prevData.dataSet,
+          rows: updatedRows,
+        },
       };
     });
   };
@@ -112,48 +113,30 @@ export function App() {
             <thead>
               <tr>
                 <th>X</th>
-                <th>Val 1</th>
-                <th>Val 2</th>
-                <th>Val 3</th>
+                {chartData?.dataSet?.columns
+                  ?.slice(1)
+                  .map((col: any, colIndex: number) => (
+                    <th key={colIndex}>{col.name}</th>
+                  ))}
               </tr>
             </thead>
             <tbody>
-              {chartData?.bars?.map((bar: any, barIndex: number) => {
-                // Find the maximum number of stacked bars
-                const maxStackedBars = Math.max(
-                  ...chartData.bars.map((b: any) => b.stackedBars.length),
-                  0,
-                );
-
-                return (
-                  <tr key={barIndex}>
-                    <td>{barIndex + 1}</td>
-                    {[...Array(maxStackedBars)].map((_, stackIndex) => {
-                      // Ensure correct order: If stackedBar exists, use it. Otherwise, insert 0.
-                      const stackedBar = bar.stackedBars[stackIndex] || {
-                        height: 0,
-                      };
-
-                      return (
-                        <td key={stackIndex}>
-                          <input
-                            type="number"
-                            value={stackedBar.height}
-                            onChange={(e) =>
-                              handleChartDataChange(
-                                barIndex,
-                                stackIndex,
-                                "height",
-                                e,
-                              )
-                            }
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
+              {chartData?.dataSet?.rows?.map((row: any, barIndex: number) => (
+                <tr key={barIndex}>
+                  <td>{row[0]}</td> {/* Bar label (Category name) */}
+                  {row.slice(1).map((value: number, stackIndex: number) => (
+                    <td key={stackIndex}>
+                      <input
+                        type="number"
+                        value={value}
+                        onChange={(e) =>
+                          handleChartDataChange(barIndex, stackIndex, e)
+                        }
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
             </tbody>
           </table>
           <button
