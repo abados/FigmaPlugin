@@ -1,7 +1,7 @@
 export function extractChartData(generatedChart: FrameNode) {
   let columns: any[] = [{ name: "Category", type: "string" }];
   let rows: any[] = [];
-  let stackedBarNames = new Set<string>();
+  let stackedBarNames: string[] = []; // ✅ Maintain correct order
   let hasStackedBars = false; // Flag to determine if we need "stacked" mode
 
   let columnChart = generatedChart.findOne(
@@ -12,6 +12,27 @@ export function extractChartData(generatedChart: FrameNode) {
 
   if (!columnChart) return null;
 
+  // 🔹 First, collect all stacked bar names to preserve the correct order
+  columnChart.children.forEach((barElement) => {
+    if (barElement.type !== "FRAME") return;
+
+    let barFrame = barElement.findOne(
+      (node) =>
+        node.type === "FRAME" && node.name.trim().toLowerCase() === "bar frame",
+    ) as FrameNode | null;
+
+    if (!barFrame) return;
+
+    barFrame.children.forEach((stackedBar) => {
+      if (stackedBar.type === "RECTANGLE") {
+        if (!stackedBarNames.includes(stackedBar.name)) {
+          stackedBarNames.push(stackedBar.name); // ✅ Ensure correct order
+        }
+      }
+    });
+  });
+
+  // 🔹 Extract values row-by-row
   columnChart.children.forEach((barElement) => {
     if (barElement.type !== "FRAME") return;
 
@@ -26,40 +47,35 @@ export function extractChartData(generatedChart: FrameNode) {
         node.name.trim().toLowerCase() === "scale - do not delete",
     ) as TextNode | null;
 
-    let scaleFactor = 1; // Default to 1 if no scale is provided
+    let originalValues: number[] = [];
     if (scaleTextNode) {
-      let scaleValue = parseFloat(scaleTextNode.characters.trim());
-      if (!isNaN(scaleValue) && scaleValue > 0) {
-        scaleFactor = scaleValue / 100;
+      let matches = scaleTextNode.characters.match(/Original: (.*) \| Max:/);
+      if (matches && matches[1]) {
+        originalValues = matches[1].split(", ").map((num) => parseFloat(num));
       }
     }
 
     if (!barFrame) return;
 
     let barData: any = [barElement.name]; // First column is the category (X-axis)
-    let extractedStackedBars: any = {};
+    let extractedStackedBars: Record<string, number> = {};
 
-    barFrame.children.forEach((stackedBar) => {
-      if (stackedBar.type === "RECTANGLE") {
-        stackedBarNames.add(stackedBar.name);
-
-        // ✅ Divide by the scale factor to get the original value
-        extractedStackedBars[stackedBar.name] = stackedBar.height * scaleFactor;
-      }
+    // 🔹 Map originalValues correctly to stacked bar names
+    stackedBarNames.forEach((name, index) => {
+      extractedStackedBars[name] = originalValues[index] || 0; // ✅ Explicitly assign 0 for missing values
     });
 
-    if (Object.keys(extractedStackedBars).length > 1) {
-      hasStackedBars = true; // There are stacked bars
+    if (Object.values(extractedStackedBars).filter((v) => v > 0).length > 1) {
+      hasStackedBars = true; // ✅ Confirm stacked mode
     }
 
-    stackedBarNames.forEach((name) => {
-      barData.push(extractedStackedBars[name] || 0);
-    });
+    // 🔹 Ensure all stacked bars exist in the correct order
+    let rowValues = stackedBarNames.map((name) => extractedStackedBars[name]);
 
-    rows.push(barData);
+    rows.push([barElement.name, ...rowValues]); // ✅ Preserve correct order
   });
 
-  // Add stacked bar names as columns
+  // 🔹 Ensure correct column structure
   stackedBarNames.forEach((name) => {
     columns.push({ name, type: "number" });
   });

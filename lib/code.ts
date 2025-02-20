@@ -2,7 +2,7 @@ import { createNewChart } from "../lib/createChart";
 import { isCreatingChart } from "../lib/state";
 import { extractChartData } from "./files";
 
-figma.showUI(__html__, { width: 400, height: 600 });
+figma.showUI(__html__, { width: 600, height: 1000 });
 
 figma.on("run", () => {
   setTimeout(() => checkSelectionAndUpdateUI(), 100);
@@ -17,9 +17,7 @@ figma.on("selectionchange", () => {
 });
 
 function checkSelectionAndUpdateUI() {
-
   if (isCreatingChart) return;
-  
 
   const selectedNodes = figma.currentPage.selection;
   if (selectedNodes.length === 0) {
@@ -50,7 +48,6 @@ function checkSelectionAndUpdateUI() {
 }
 
 figma.ui.onmessage = async (msg) => {
-
   if (msg.type === "chart-created") {
     figma.ui.postMessage({
       type: "showModifyUI",
@@ -73,13 +70,25 @@ figma.ui.onmessage = async (msg) => {
     });
 
     // ✅ Create a new chart based on the selected instance
+
     await createNewChart(selectedObject, msg, false);
     return;
   } else if (
     selectedObject.name === "Generated Chart" &&
     selectedObject.type === "FRAME"
   ) {
+    if (msg.type === "modify-instance") {
+      // ✅ Re-create the chart using the updated chart data
+      await createNewChart(selectedObject, msg, true);
 
+      // ✅ Send updated chart data back to UI for re-sync
+      const chartData = extractChartData(selectedObject);
+      figma.ui.postMessage({
+        type: "showModifyUI",
+        chartData: chartData,
+      });
+      return;
+    }
     if (msg.type === "import-json") {
       await createNewChart(selectedObject, msg, true);
 

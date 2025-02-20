@@ -7,6 +7,9 @@ export async function createNewChart(
   msg: any,
   isModifyMode: boolean,
 ) {
+  console.log("🔄 Rebuilding Chart with Data:", msg);
+  console.log("🔄 Rebuilding Chart with Data:", msg.chartData);
+
   setIsCreatingChart(true);
   figma.currentPage.selection = [selectedComponent];
   let newInstance: FrameNode;
@@ -211,7 +214,6 @@ export async function createNewChart(
           node.name.trim().toLowerCase() === "label 1" ||
           node.name.trim().toLowerCase() === "label text",
       );
-
       let scaleTextNode = newLabelFrame.findOne(
         (node) =>
           node.type === "TEXT" &&
@@ -223,7 +225,9 @@ export async function createNewChart(
         newLabelText.characters = isModifyMode
           ? rowData[i][0] || `Label ${i + 1}`
           : `Label ${i + 1}`;
-        scaleTextNode.characters = `${maxSum}`;
+        const originalValues = rowData[i].slice(1).join(", "); // Convert array to string (e.g., "10, 30, 40")
+        scaleTextNode.characters = `Original: ${originalValues} | Max: ${maxSum}`;
+        console.log("originalValues", originalValues);
       }
     }
 

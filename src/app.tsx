@@ -37,7 +37,7 @@ export function App() {
   ) => {
     if (!chartData) return;
     const target = event.target as HTMLInputElement;
-    const value = parseInt(target.value) || 0;
+    const value = parseFloat(target.value) || 0; // Preserve decimal precision
 
     setChartData((prevData: any) => {
       if (!prevData) return prevData;
@@ -46,17 +46,17 @@ export function App() {
         i === barIndex
           ? [
               ...row.slice(0, stackIndex + 1),
-              value,
+              value, // ✅ Keep the exact entered value
               ...row.slice(stackIndex + 2),
             ]
           : row,
       );
-
+      console.log("handleChartDataChange", updatedRows);
       return {
         ...prevData,
         dataSet: {
           ...prevData.dataSet,
-          rows: updatedRows,
+          rows: updatedRows, // ✅ Save only original entered values
         },
       };
     });
@@ -123,18 +123,21 @@ export function App() {
             <tbody>
               {chartData?.dataSet?.rows?.map((row: any, barIndex: number) => (
                 <tr key={barIndex}>
-                  <td>{row[0]}</td> {/* Bar label (Category name) */}
-                  {row.slice(1).map((value: number, stackIndex: number) => (
-                    <td key={stackIndex}>
-                      <input
-                        type="number"
-                        value={value}
-                        onChange={(e) =>
-                          handleChartDataChange(barIndex, stackIndex, e)
-                        }
-                      />
-                    </td>
-                  ))}
+                  <td>{row[0]}</td> {/* Show category name (X-axis) */}
+                  {row
+                    .slice(1)
+                    .map((originalValue: number, stackIndex: number) => (
+                      <td key={stackIndex}>
+                        <input
+                          type="number"
+                          step="0.01" // ✅ Preserve decimal values
+                          value={originalValue} // ✅ Show unmodified original values
+                          onChange={(e) =>
+                            handleChartDataChange(barIndex, stackIndex, e)
+                          }
+                        />
+                      </td>
+                    ))}
                 </tr>
               ))}
             </tbody>
@@ -145,14 +148,14 @@ export function App() {
                 {
                   pluginMessage: {
                     type: "modify-instance",
-                    updatedChartData: chartData,
+                    chartData: chartData,
                   },
                 },
                 "*",
               )
             }
           >
-            Update Chart
+            Apply Changes
           </button>
           <button
             onClick={() =>
