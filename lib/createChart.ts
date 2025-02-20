@@ -217,7 +217,7 @@ export async function createNewChart(
       let scaleTextNode = newLabelFrame.findOne(
         (node) =>
           node.type === "TEXT" &&
-          node.name.trim().toLowerCase() === "scale - do not delete",
+          node.name.trim().toLowerCase() === "values - do not delete",
       ) as TextNode | null;
 
       if (newLabelText && scaleTextNode) {

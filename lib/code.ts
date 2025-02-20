@@ -90,6 +90,7 @@ figma.ui.onmessage = async (msg) => {
       return;
     }
     if (msg.type === "import-json") {
+      console.log("reach import-json in create function");
       await createNewChart(selectedObject, msg, true);
 
       figma.ui.postMessage({

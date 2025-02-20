@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { handleJsonImport, handleCsvImport } from "../lib/files";
 import "./app.css";
 
 export function App() {
@@ -97,6 +98,7 @@ export function App() {
                     type: "create-instance",
                     newHeight: barHeight,
                     numBars,
+                    chartData,
                   },
                 },
                 "*",
@@ -105,6 +107,24 @@ export function App() {
           >
             Create Chart Instance
           </button>
+          <div className="import-container">
+            <label className="import-button">
+              Import from JSON
+              <input
+                type="file"
+                accept=".json"
+                onChange={(event) => handleJsonImport(event, setChartData)}
+              />
+            </label>
+            <label className="import-button">
+              Import from CSV
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(event) => handleCsvImport(event, setChartData)}
+              />
+            </label>
+          </div>
         </>
       ) : (
         <>
@@ -113,15 +133,15 @@ export function App() {
             <thead>
               <tr>
                 <th>X</th>
-                {chartData?.dataSet?.columns
-                  ?.slice(1)
+                {chartData.dataSet.columns
+                  .slice(1)
                   .map((col: any, colIndex: number) => (
                     <th key={colIndex}>{col.name}</th>
                   ))}
               </tr>
             </thead>
             <tbody>
-              {chartData?.dataSet?.rows?.map((row: any, barIndex: number) => (
+              {chartData.dataSet.rows.map((row: any, barIndex: number) => (
                 <tr key={barIndex}>
                   <td>{row[0]}</td> {/* Show category name (X-axis) */}
                   {row
@@ -142,57 +162,55 @@ export function App() {
               ))}
             </tbody>
           </table>
-          <button
-            onClick={() =>
-              parent.postMessage(
-                {
-                  pluginMessage: {
-                    type: "modify-instance",
-                    chartData: chartData,
-                  },
-                },
-                "*",
-              )
-            }
-          >
-            Apply Changes
-          </button>
-          <button
-            onClick={() =>
-              parent.postMessage(
-                { pluginMessage: { type: "request-download-json" } },
-                "*",
-              )
-            }
-          >
-            Download Chart Instance
-          </button>
-          <input
-            type="file"
-            accept=".json"
-            onChange={(event) => {
-              const target = event.target as HTMLInputElement;
-              if (!target.files || target.files.length === 0) return;
-              const file = target.files[0];
-              const reader = new FileReader();
-              reader.onload = (e) => {
-                try {
-                  const jsonData = JSON.parse(e.target?.result as string);
-                  setChartData(jsonData);
-                  parent.postMessage(
-                    {
-                      pluginMessage: {
-                        type: "import-json",
-                        chartData: jsonData,
-                      },
+          <div className="button-container">
+            <button
+              className="primary-button"
+              onClick={() =>
+                parent.postMessage(
+                  {
+                    pluginMessage: {
+                      type: "modify-instance",
+                      chartData: chartData,
                     },
-                    "*",
-                  );
-                } catch (error) {}
-              };
-              reader.readAsText(file);
-            }}
-          />
+                  },
+                  "*",
+                )
+              }
+            >
+              Apply Changes
+            </button>
+            <button
+              className="primary-button"
+              onClick={() =>
+                parent.postMessage(
+                  { pluginMessage: { type: "request-download-json" } },
+                  "*",
+                )
+              }
+            >
+              Download Chart Instance
+            </button>
+          </div>
+
+          {/* 🔹 Separate JSON and CSV Upload Inputs */}
+          <div className="import-container">
+            <label className="import-button">
+              Import from JSON
+              <input
+                type="file"
+                accept=".json"
+                onChange={(event) => handleJsonImport(event, setChartData)}
+              />
+            </label>
+            <label className="import-button">
+              Import from CSV
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(event) => handleCsvImport(event, setChartData)}
+              />
+            </label>
+          </div>
         </>
       )}
     </div>
