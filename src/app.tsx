@@ -188,7 +188,7 @@ export function App() {
                 )
               }
             >
-              Download Chart Instance
+              Download Sisense Widget
             </button>
           </div>
 
