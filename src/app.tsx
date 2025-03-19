@@ -4,7 +4,7 @@ import "./app.css";
 
 export function App() {
   const [barHeight, setBarHeight] = useState(80);
-  const [numBars, setNumBars] = useState(1);
+  const [numBars, setNumBars] = useState(5);
   const [mode, setMode] = useState<"create" | "modify">("create");
   const [chartData, setChartData] = useState<any>(null);
 
@@ -68,7 +68,7 @@ export function App() {
       {mode === "create" ? (
         <>
           <h2>Create Chart Instance</h2>
-          <label>
+          <label style={{ display: "none" }}>
             Bar Height:
             <input
               type="number"
@@ -86,7 +86,7 @@ export function App() {
               type="number"
               value={numBars}
               onChange={(e) =>
-                setNumBars(parseInt((e.target as HTMLInputElement).value) || 1)
+                setNumBars(parseInt((e.target as HTMLInputElement).value) || 5)
               }
             />
           </label>

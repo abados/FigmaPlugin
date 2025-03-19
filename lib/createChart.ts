@@ -165,10 +165,24 @@ export async function createNewChart(
         .forEach((bar) => {
           bar.remove();
         });
-      const { rowResults, maxSum } = findMaxAndSum(
-        DEFAULT_STACKED_HEIGHTS,
-        numStackedBars,
-      );
+      
+      // Get max sum based on actual data source
+      let calculatedMaxSum;
+      if (isModifyMode && msg.chartData) {
+        // Calculate max sum from the actual row data
+        calculatedMaxSum = Math.max(
+          ...rowData.map((row) =>
+            row.slice(1).reduce((sum, val) => sum + (val || 0), 0)
+          )
+        );
+      } else {
+        // Use default stacked heights when creating a new chart
+        const { maxSum } = findMaxAndSum(
+          DEFAULT_STACKED_HEIGHTS,
+          numStackedBars
+        );
+        calculatedMaxSum = maxSum;
+      }
 
       for (let j = 0; j < numStackedBars; j++) {
         let barHeight;
@@ -178,14 +192,14 @@ export async function createNewChart(
           const realBarHeight = rowData[i][j + 1] || 0;
           if (!realBarHeight) continue;
           barHeight =
-            maxSum > 0 ? (barFrame.height * realBarHeight) / maxSum : 0;
+            calculatedMaxSum > 0 ? (barFrame.height * realBarHeight) / calculatedMaxSum : 0;
           //barHeight = stackedBarData.height;
           barColor = DEFAULT_COLORS[j % DEFAULT_COLORS.length];
         } else {
           constantBarHeight =
             DEFAULT_STACKED_HEIGHTS[i % DEFAULT_STACKED_HEIGHTS.length][j] || 0;
           barHeight =
-            (barFrame.height * (constantBarHeight - 0)) / (maxSum - 0);
+            (barFrame.height * (constantBarHeight - 0)) / (calculatedMaxSum - 0);
           barColor = DEFAULT_COLORS[j % DEFAULT_COLORS.length];
         }
 
@@ -226,7 +240,7 @@ export async function createNewChart(
           ? rowData[i][0] || `Label ${i + 1}`
           : `Label ${i + 1}`;
         const originalValues = rowData[i].slice(1).join(", "); // Convert array to string (e.g., "10, 30, 40")
-        scaleTextNode.characters = `Original: ${originalValues} | Max: ${maxSum}`;
+        scaleTextNode.characters = `Original: ${originalValues} | Max: ${calculatedMaxSum}`;
         console.log("originalValues", originalValues);
       }
     }
